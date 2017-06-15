@@ -17,14 +17,46 @@ def main():
 	
 	cartella_user = inizializza()
 	os.chdir(cartella_user)
-	reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
+
+	'''try:
+		reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
+		redditore = reddit.user.me()    
+		print('e adesso?')
+	except:
+		print('oops, non riesco a loggare!! Hai sbagliato qualcosa!')
+		sys.exit()
+	else:
+		print('niente try')
+		print(cartella_user)
+		
+		#TODO cancella cartella_user
+		#reinizializza'''
+
+	redditore = reddit_login()
 	
 	sfigatto = GfycatClient()
 	
-	lista_imgup, lista_vidup = upvote_redditore(reddit, sfigatto, cartella_user)
+	lista_imgup, lista_vidup = upvote_redditore(redditore, sfigatto, cartella_user)
 
 	img(lista_imgup) 
 	vid(lista_vidup)
+	
+def reddit_login(): #COMPLETARE
+	while True:
+		try:
+			reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
+			redditore = reddit.user.me()    
+			print('e adesso?')
+		except:
+			print('oops, non riesco a loggare!! Hai sbagliato qualcosa!')
+			reddit_login()
+		else:
+			print('niente exception')
+			print(cartella_user)
+			return redditore
+		
+		#TODO cancella cartella_user
+		#reinizializza
 	
 def inizializza():
 	"""Cerca nella cwd la cartella col nome dell'username fornito
@@ -60,12 +92,11 @@ def crea_prawini(configFile):
 		fileini.write('client_id=IIjAZV_ce3rkgA\n')
 		fileini.write('client_secret=qXdKaWzr9CxBEsFGto0IEgHtKEg')
 		
-def upvote_redditore (reddit, sfigatto, cartella_user):    
+def upvote_redditore (redditore, sfigatto, cartella_user):    
 	lista_immagini = list()
 	lista_video = list()
 	listone = list()
-	
-	redditore = reddit.user.me()         
+	        
 	upvoted = redditore.upvoted()
 
 	for upvote in upvoted:
