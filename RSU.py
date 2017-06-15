@@ -1,7 +1,7 @@
 #!/usr/bin/python 3.6
 
-import os, pprint, requests, shelve, sys
-import bs4, praw
+import os, pprint, requests, shelve, shutil, sys, time
+import bs4, praw, send2trash
 
 from gfycat.client import GfycatClient
 
@@ -14,27 +14,11 @@ def main():
 	#TODO: vedi se il file praw.ini esiste
 	#se non esiste crealo
 	#altrimenti fai subito il login
-	
-	cartella_user = inizializza()
-	os.chdir(cartella_user)
-
-	'''try:
-		reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
-		redditore = reddit.user.me()    
-		print('e adesso?')
-	except:
-		print('oops, non riesco a loggare!! Hai sbagliato qualcosa!')
-		sys.exit()
-	else:
-		print('niente try')
-		print(cartella_user)
-		
-		#TODO cancella cartella_user
-		#reinizializza'''
-
-	redditore = reddit_login()
-	
+	print('partiti!')
 	sfigatto = GfycatClient()
+	redditore, cartella_user = reddit_login()
+
+	print(os.getcwd())
 	
 	lista_imgup, lista_vidup = upvote_redditore(redditore, sfigatto, cartella_user)
 
@@ -42,31 +26,44 @@ def main():
 	vid(lista_vidup)
 	
 def reddit_login(): #COMPLETARE
-	while True:
+	while True:	
+		username = input('what\'s your reddit username?\n')
+		cartella = os.path.join(os.sys.path[0], username)
+		inizializza(username, cartella)
+		time.sleep(3)
 		try:
 			reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
 			redditore = reddit.user.me()    
 			print('e adesso?')
 		except:
 			print('oops, non riesco a loggare!! Hai sbagliato qualcosa!')
-			reddit_login()
+			#TODO cancella la cartella creata!
+			print(os.getcwd())
+			#non funziona, il secondo login non va mai in porto!	
+			os.chdir('..')
+			shutil.rmtree(cartella, ignore_errors = True)			
+			break
 		else:
 			print('niente exception')
-			print(cartella_user)
-			return redditore
+			print(os.getcwd())
+			return redditore, cartella
+	print('ripartiamo')
+	main()
 		
-		#TODO cancella cartella_user
-		#reinizializza
+
 	
-def inizializza():
+def inizializza(username, cartella):
 	"""Cerca nella cwd la cartella col nome dell'username fornito
 	se non la trova la crea, crea le cartelle in Y per i file
 	crea il file config per fare dopo il praw.ini, e lo apre
 	Se la trova, cerca e apre il file config.
 	Restituisce la cartella dell'utente """
 	
-	username = input('what\'s your reddit username?\n')
-	cartella = os.path.join(os.sys.path[0], username)
+	#username = input('what\'s your reddit username?\n')
+	#cartella = os.path.join(os.sys.path[0], username)
+	#Se la cartella non esiste creala
+	print('inizializziamo')
+	print(os.path.exists(cartella))
 	if not os.path.exists(cartella):
 		os.makedirs(cartella, exist_ok=True)
 		configFile = shelve.open(os.path.join(cartella, 'config'))
@@ -76,13 +73,15 @@ def inizializza():
 		os.chdir('y:')
 		os.makedirs(PATH_SLUT_IMG, exist_ok=True)
 		os.makedirs(PATH_SLUT_VID, exist_ok=True)
+	#Se esiste, leggila
 	else:
 		configFile = shelve.open(os.path.join(cartella, 'config'))
 	os.chdir(cartella)
 	crea_prawini(configFile)
-	return (cartella)
+	#return (cartella)
 
 def crea_prawini(configFile):
+	print('creo praw.ini')
 	with open (FILE_PRAW, 'w') as fileini:
 		'''Crea il file praw.ini da usare successivamente'''
 		fileini.write('[rus]\n')
@@ -98,14 +97,13 @@ def upvote_redditore (redditore, sfigatto, cartella_user):
 	listone = list()
 	        
 	upvoted = redditore.upvoted()
-
+	print(type(upvoted))
 	for upvote in upvoted:
-		print(upvote)
-		url = upvote.url
-		lista_urls = upvote_passati(redditore)
-		
+		#print(upvote)
 		print ('for loop in upvote_redditore')
-		print(cartella_user)
+		url = upvote.url
+		lista_urls = upvote_passati()
+		
 		sub_di_origine_scelte = scelta_subreddit (cartella_user, upvoted)
 		print(sub_di_origine_scelte)
 		#TODO: piuttosto che questo check sciocco
@@ -177,7 +175,7 @@ def printa_post(lista_upvoted):
 		num += 1
 	
 	
-def upvote_passati(utente):
+def upvote_passati():
 	#TODO: cerca la lista dei doppioni in PATH_SLUT. Se c'è l'apre e si prepara ad
 	#controllare se i post dell'utente già ci sono e nel caso li salto (e toglie l'upvote)
 	#aggiunge i post mancanti
