@@ -11,35 +11,51 @@ PATH_SLUT_IMG = 'Y:\\Giochi\\Mega\\nsfw_img'
 PATH_SLUT_VID = 'Y:\\Giochi\\Mega\\nsfw_vid'
 
 def main():
-	#TODO: vedi se il file praw.ini esiste
-	#se non esiste crealo
-	#altrimenti fai subito il login
 	print('partiti!')
 	sfigatto = GfycatClient()
 	redditore, cartella_user = reddit_login()
-
-	print(os.getcwd())
 	
-	lista_imgup, lista_vidup = upvote_redditore(redditore, sfigatto, cartella_user)
-
-	img(lista_imgup) 
-	vid(lista_vidup)
+	lista_upvotes = crea_lista_up(redditore, sfigatto, cartella_user)
 	
-def reddit_login(): #COMPLETARE
+	percorso, sub_scelte = scelta_subreddit(cartella_user, lista_upvotes)
+	
+	if os.path.isfile(percorso):
+		#TODO:Chiedi se vuoi aggiungere altre sub al file passato
+		print ('file')
+	else:
+		#TODO: Chiedi se vuoi salvare questa lista in un file da poter riutilizzare
+		print ('path')
+	file_upvotati = txt_upvote_passati()
+	#lista_imgup, lista_vidup = upvote_redditore(redditore, sfigatto, cartella_user)
+	selezione_post (lista_upvotes, sub_scelte)
+	#img(lista_imgup) 
+	#vid(lista_vidup)
+
+def selezione_post (lista_upvotes, sub_scelte):
+	url_selezionati = list()
+	for up in lista_upvotes:
+		url = up.url
+		sub = up.subreddit
+		if sub in sub_scelte:
+			print(url)
+			url_selezionati.append(url)
+	return url_selezionati
+	
+def reddit_login(): #COMPLETARE non funziona: il secondo login non va mai in porto!
 	while True:	
 		username = input('what\'s your reddit username?\n')
 		cartella = os.path.join(os.sys.path[0], username)
 		inizializza(username, cartella)
-		time.sleep(3)
+		
 		try:
 			reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
 			redditore = reddit.user.me()    
 			print('e adesso?')
 		except:
 			print('oops, non riesco a loggare!! Hai sbagliato qualcosa!')
-			#TODO cancella la cartella creata!
 			print(os.getcwd())
-			#non funziona, il secondo login non va mai in porto!	
+			
+			time.sleep(2)
 			os.chdir('..')
 			shutil.rmtree(cartella, ignore_errors = True)			
 			break
@@ -47,21 +63,17 @@ def reddit_login(): #COMPLETARE
 			print('niente exception')
 			print(os.getcwd())
 			return redditore, cartella
+	
 	print('ripartiamo')
 	main()
 		
-
-	
 def inizializza(username, cartella):
 	"""Cerca nella cwd la cartella col nome dell'username fornito
 	se non la trova la crea, crea le cartelle in Y per i file
 	crea il file config per fare dopo il praw.ini, e lo apre
 	Se la trova, cerca e apre il file config.
 	Restituisce la cartella dell'utente """
-	
-	#username = input('what\'s your reddit username?\n')
-	#cartella = os.path.join(os.sys.path[0], username)
-	#Se la cartella non esiste creala
+
 	print('inizializziamo')
 	print(os.path.exists(cartella))
 	if not os.path.exists(cartella):
@@ -78,7 +90,6 @@ def inizializza(username, cartella):
 		configFile = shelve.open(os.path.join(cartella, 'config'))
 	os.chdir(cartella)
 	crea_prawini(configFile)
-	#return (cartella)
 
 def crea_prawini(configFile):
 	print('creo praw.ini')
@@ -90,25 +101,85 @@ def crea_prawini(configFile):
 		#TODO: come fare a nascondere queste info sensibili?
 		fileini.write('client_id=IIjAZV_ce3rkgA\n')
 		fileini.write('client_secret=qXdKaWzr9CxBEsFGto0IEgHtKEg')
+
+def crea_lista_up(redditore, sfigatto, cartella_user):
+	lista_up = list()
+	
+	upvoted = redditore.upvoted()
+	num = 1
+	for upvote in upvoted:
+		lista_up.append(upvote)
+		printa_up(num, upvote)
+		num += 1
+	return lista_up
+	
+def printa_up(numero, upvotato):
+	sub = str(upvotato.subreddit)
+	lunghezza = len(sub)
+	if lunghezza > 12:
+		spazi = '\t'
+	elif lunghezza > 6:
+		spazi = '\t\t'
+	else:
+		spazi = '\t\t\t'
+	print (str(numero) + ') /r/',upvotato.subreddit, spazi, upvotato.title.encode(errors='replace'))
+
+def scelta_subreddit(cartella_user, upvoted):
+	os.chdir(cartella_user)
+	
+	while True:
+		print('\n\n***Hai due possibilità per salvare i file:' +
+		'\n[1]Importare un file di subreddit dalla cartella:' +
+		'\n%s' %cartella_user +
+		'\n[2] scegliere manualmente i subreddit \t***' )
 		
+		scelta = int(input())
+		
+		if scelta == 1:
+			print(os.listdir(cartella_user))
+			sceltatxt = input('quale file? specifica anche l\'estensione\t')
+			if os.path.isfile(sceltatxt):
+			#Lo apro in append mode per poter vedere se posso modificarlo
+				with open (sceltatxt, 'a') as filesub:
+					percorso_filesub = os.path.join(cartella_user, sceltatxt)
+					return percorso_filesub, filesub.read()
+			else: 
+				print('il file %s non esiste' %sceltatxt)
+				continue
+				
+		elif scelta == 2:
+			listasub = list()
+			sub_indicata = 1
+			while sub_indicata:
+				sub_indicata = input('quale subreddit scegli? bada bene a come scrivi! Lascia bianco per proseguire\n')
+				listasub.append(sub_indicata)
+				print(listasub)
+			#TODO: chiedi all'utente se vuole creare un file con queste 
+			#specifiche sub che ha scelto, o se ne vuole modificare uno esistente
+			return cartella_user, listasub
+		else: continue
+
 def upvote_redditore (redditore, sfigatto, cartella_user):    
 	lista_immagini = list()
 	lista_video = list()
 	listone = list()
 	        
 	upvoted = redditore.upvoted()
+	print(upvoted)
+	#printa_post(upvoted)
+	print(upvoted)
 	print(type(upvoted))
 	for upvote in upvoted:
 		#print(upvote)
-		print ('for loop in upvote_redditore')
+		
 		url = upvote.url
 		lista_urls = upvote_passati()
-		
+		print (url)
 		sub_di_origine_scelte = scelta_subreddit (cartella_user, upvoted)
 		print(sub_di_origine_scelte)
 		#TODO: piuttosto che questo check sciocco
 		#creare un file con una lista di tutti i subreddit interessanti
-		if upvote in sub_di_origine_scelte: #upvote.subreddit != 'dwarffortress':
+		if upvote in sub_di_origine_scelte: 
 			listone.append(url.rstrip('?1'))
 			
 			#YODO: se l'url è in lista ed il file è nel computer salta il resto e togli l'upvote.
@@ -129,53 +200,8 @@ def upvote_redditore (redditore, sfigatto, cartella_user):
 		#pprint.pprint(listone)
 	#printa_post(upvoted)
 	return (lista_immagini, lista_video)
-
-def scelta_subreddit(cartella_user, upvoted):
-	os.chdir(cartella_user)
-	printa_post(upvoted)
-	while True:
-		scelta = int(input('importare un file di subreddit [1] o scegliere manualmente i subreddit [2]?\t'))
-		if scelta == 1:
-			print(os.listdir(cartella_user))
-			sceltatxt = input('quale file? specifica anche l\'estensione\t')
-			if os.path.isfile(sceltatxt):
-				with open (sceltatxt, 'r') as filesub:
-					return filesub
-			else: 
-				print('il file %s non esiste' %sceltatxt)
-				continue
-		elif scelta == 2:
-			listasub = list()
-			sub_indicata = 1
-			while sub_indicata:
-				sub_indicata = input('quale subreddit scegli? bada bene a come scrivi! Lascia bianco per proseguire\n')
-				listasub.append(sub_indicata)
-				print(listasub)
-			#TODO: chiedi all'utente se vuole creare un file con queste 
-			#specifiche sub che ha scelto, o se ne vuole modificare uno esistente
-			
-			return listasub
-		else: continue
 	
-	return 1
-	
-	
-
-def printa_post(lista_upvoted):
-	num = 1
-	for up in lista_upvoted:
-		sub = str(up.subreddit)
-		if len(sub) > 12:
-			spazi = '\t'
-		elif len(sub) > 6:
-			spazi = '\t\t'
-		else:
-			spazi = '\t\t\t'
-		print (str(num) + ') /r/',up.subreddit, spazi, up.title.encode(errors='replace'))
-		num += 1
-	
-	
-def upvote_passati():
+def txt_upvote_passati():
 	#TODO: cerca la lista dei doppioni in PATH_SLUT. Se c'è l'apre e si prepara ad
 	#controllare se i post dell'utente già ci sono e nel caso li salto (e toglie l'upvote)
 	#aggiunge i post mancanti
@@ -186,28 +212,31 @@ def upvote_passati():
 		modo = 'a+'
 	#with open ('listone.txt', modo) as lista:
 	#	return lista
-	lista = open ('lista_upvote.txt', modo)
-	return lista
+	with open ('lista_upvote.txt', modo) as lista:
+		return lista
 	
-def doppione(url, lista_url):
-	lettura = lista_url.read()
+def chek_doppione(nuovi_url, file_passato):
+	lettura = file_passato.read()
+	for url in nuovi_url:
 	#Se l'Url non è nella scheda, prosegui e vai a salvarlo
-	if url not in lettura:
-		lista_url.write(url)
-		return False
-	#se l'Url è nella scheda, vedi se c'è il file a cui si riferisce, se no, vai a salvarlo
-	elif not os.path.isfile(os.path.join(PATH_SLUT_IMG, os.path.basename(url))) or os.path.isfile(os.path.join(PATH_SLUT_VID, os.path.basename(url))):
-		print('Url già presente in lista, ma file assente!')
-		scelta = input('vuoi salvare il file: ' + str(url) +'? S/N')
-		while scelta != 'n' or scelta != 's':	
-			if scelta.lower() == 's':
-				return False
-			elif scelta.lower() == 'n':
-				return True
-	#se l'url è nella lista ed esiste pure il file allora è proprio un doppione da eliminare
-	else:
-		return True
-		#TODO: controllare se il file esiste ancora nella cartella...
+		if url not in lettura:
+			print (url + ' è nuovo! SLURP')
+			file_passato.write(url)
+			return False
+		#se l'Url è nella scheda, vedi se c'è il file a cui si riferisce, se no, vai a salvarlo
+		elif not os.path.isfile(os.path.join(PATH_SLUT_IMG, os.path.basename(url))) or os.path.isfile(os.path.join(PATH_SLUT_VID, os.path.basename(url))):
+			print('Url già presente in lista, ma file assente!')
+			scelta = input('vuoi salvare il file: ' + str(url) +'? S/N')
+			while scelta.lower() != 'n' or scelta.lower() != 's':	
+				if scelta.lower() == 's':
+					return False
+				elif scelta.lower() == 'n':
+					return True
+		#se l'url è nella lista ed esiste pure il file allora è proprio un doppione da eliminare
+		else:
+			print(url + ' già presente, con relativo file. DOPPIONISSIMO!')
+			return True
+			#TODO: controllare se il file esiste ancora nella cartella...
 	
 	
 def img(lista):
