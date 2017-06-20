@@ -1,6 +1,7 @@
 #!/usr/bin/python 3.6
+# -*- coding: utf-8 -*-
 
-import os, pprint, requests, shelve, shutil, sys, time
+import os, pprint, re, requests, shelve, shutil, sys, time
 import bs4, praw, send2trash
 
 from gfycat.client import GfycatClient
@@ -9,6 +10,11 @@ FILE_PRAW = 'praw.ini'
 PATH_SLUT = 'Y:\\Giochi\\Mega'
 PATH_SLUT_IMG = 'Y:\\Giochi\\Mega\\nsfw_img'
 PATH_SLUT_VID = 'Y:\\Giochi\\Mega\\nsfw_vid'
+LISTA_IMMAGINI = []
+LISTA_VIDEO = []
+LISTA_GIFV = []
+IRRISOLTI = []
+DOPPIONI = []
 
 def main():
 	print('partiti!')
@@ -17,7 +23,13 @@ def main():
 	
 	lista_upvotes = crea_lista_up(redditore, sfigatto, cartella_user)
 	
+	sub_upvotes = set()
+	for el in lista_upvotes:
+		sub_upvotes.add((str(el.subreddit)))
+	pprint.pprint (sub_upvotes)
+	
 	percorso, sub_scelte = scelta_subreddit(cartella_user, lista_upvotes)
+	print (sub_scelte)
 	
 	if os.path.isfile(percorso):
 		#TODO:Chiedi se vuoi aggiungere altre sub al file passato
@@ -25,21 +37,83 @@ def main():
 	else:
 		#TODO: Chiedi se vuoi salvare questa lista in un file da poter riutilizzare
 		print ('path')
-	file_upvotati = txt_upvote_passati()
-	#lista_imgup, lista_vidup = upvote_redditore(redditore, sfigatto, cartella_user)
-	selezione_post (lista_upvotes, sub_scelte)
-	#img(lista_imgup) 
-	#vid(lista_vidup)
+		
+	elenco_old_up = txt_upvote_passati()
+	
+	lista_old_up = elenco_old_up.readlines()
+	lista_new_up = selezione_post (lista_upvotes, sub_scelte)
+	
+	for elemento in lista_new_up:
+		if not check_doppione(elemento, lista_old_up, elenco_old_up):
+			formato(elemento, sfigatto)
+			
+	print('ok fatto')			
+	
+	print ('immagini salvate')
+	print(LISTA_IMMAGINI)
+	print('video salvati')
+	print(LISTA_VIDEO)
+	print('GIFV salvati')	
+	print(LISTA_GIFV) 
+	print('irrisolti!!!')
+	print(IRRISOLTI) 
+	print("doppioni")
+	print(DOPPIONI)
+	
+	for post in lista_new_up:
+		commenti = parse_commenti(post)
+	
+	rimozione = [LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV, DOPPIONI]
+	
+	#PROVA CON UN ELEMENTO SOLO ALLA VOTLA:
+	remove_upvote(DOPPIONI[-1])
+	
+	#for lista in rimozione:
+	#	for el in lista:
+	#		remove_upvote(el)
+
+def parse_commenti(post):
+	patt_imgur = re.compile(r'.*imgur.*\s|.*gfycat.*\s')
+	post.comments.replace_more(limit=0)
+	comment_queue = post.comments[:]  # Seed with top-level
+	while comment_queue:
+		comment = comment_queue.pop(0)
+		bytestring = comment.body.encode('utf-8', 'replace')
+		#comment =  comment.encode('ascii', 'replace')
+		cerca = patt_imgur.search(str(bytestring, 'utf-8'))
+		if cerca:
+			print (type(cerca))
+			print (cerca.group(0))
+		comment_queue.extend(comment.replies)
+	#TODO legge i commenti in cerca di album ed affini
+	
+
+def remove_upvote(el):
+	print('sto per togliere l\'upvote a: ', el.subreddit, el.title.encode(errors='replace'), el.url, el.shortlink)
+	while True:
+		opzione = input("posso togliere gli upvote dai post oramai salvati? [s/n]")
+		if opzione.lower() not in ['s', 'n']:
+			continue
+		elif opzione.lower() == 's':
+			el.clear_vote()
+			break
+			
+			
 
 def selezione_post (lista_upvotes, sub_scelte):
-	url_selezionati = list()
+	'''prende la listadi submission degli upvotes dell'utente, e le sub indicate come
+	interessanti, restituisce una lista contenente i post upvotati 
+	provenienti da quelle sub'''
+	#url_selezionati = list()
+	post_selezionati = list()
 	for up in lista_upvotes:
-		url = up.url
+		#url = up.url
 		sub = up.subreddit
 		if sub in sub_scelte:
-			print(url)
-			url_selezionati.append(url)
-	return url_selezionati
+			post_selezionati.append(up)
+	print('printo i submission selezionati!\n')
+	print (post_selezionati)
+	return post_selezionati
 	
 def reddit_login(): #COMPLETARE non funziona: il secondo login non va mai in porto!
 	while True:	
@@ -58,14 +132,11 @@ def reddit_login(): #COMPLETARE non funziona: il secondo login non va mai in por
 			time.sleep(2)
 			os.chdir('..')
 			shutil.rmtree(cartella, ignore_errors = True)			
-			break
+			
 		else:
 			print('niente exception')
 			print(os.getcwd())
 			return redditore, cartella
-	
-	print('ripartiamo')
-	main()
 		
 def inizializza(username, cartella):
 	"""Cerca nella cwd la cartella col nome dell'username fornito
@@ -103,6 +174,10 @@ def crea_prawini(configFile):
 		fileini.write('client_secret=qXdKaWzr9CxBEsFGto0IEgHtKEg')
 
 def crea_lista_up(redditore, sfigatto, cartella_user):
+	'''restituisce una lista di submission, per ogni elemento
+	puoi accedere alla sua subreddit con:
+	lista[el].subreddit'''
+	
 	lista_up = list()
 	
 	upvoted = redditore.upvoted()
@@ -125,6 +200,11 @@ def printa_up(numero, upvotato):
 	print (str(numero) + ') /r/',upvotato.subreddit, spazi, upvotato.title.encode(errors='replace'))
 
 def scelta_subreddit(cartella_user, upvoted):
+	'''passandogli la path della cartella user e la lista di upvotes
+	restituisce una tupla contenente, il percorso della cartella e la
+	lista delle sub scelte, oppure il percorso per il file txt ed la
+	variabile file.read() se già esistente'''
+	
 	os.chdir(cartella_user)
 	
 	while True:
@@ -140,9 +220,12 @@ def scelta_subreddit(cartella_user, upvoted):
 			sceltatxt = input('quale file? specifica anche l\'estensione\t')
 			if os.path.isfile(sceltatxt):
 			#Lo apro in append mode per poter vedere se posso modificarlo
-				with open (sceltatxt, 'a') as filesub:
+				with open (sceltatxt, 'r+') as filesub:
 					percorso_filesub = os.path.join(cartella_user, sceltatxt)
-					return percorso_filesub, filesub.read()
+					lista_filesub = filesub.readlines()
+					for i in range (len(lista_filesub)):
+						lista_filesub[i] = lista_filesub[i].rstrip('\n')
+					return percorso_filesub, lista_filesub
 			else: 
 				print('il file %s non esiste' %sceltatxt)
 				continue
@@ -157,105 +240,138 @@ def scelta_subreddit(cartella_user, upvoted):
 			#TODO: chiedi all'utente se vuole creare un file con queste 
 			#specifiche sub che ha scelto, o se ne vuole modificare uno esistente
 			return cartella_user, listasub
+		elif scelta == 3:
+			listasub = list()
+			for el in upvoted:
+				listasub.append(upvoted.subreddit)
+			return cartella_user, listasub
 		else: continue
 
-def upvote_redditore (redditore, sfigatto, cartella_user):    
-	lista_immagini = list()
-	lista_video = list()
-	listone = list()
-	        
-	upvoted = redditore.upvoted()
-	print(upvoted)
-	#printa_post(upvoted)
-	print(upvoted)
-	print(type(upvoted))
-	for upvote in upvoted:
-		#print(upvote)
-		
-		url = upvote.url
-		lista_urls = upvote_passati()
-		print (url)
-		sub_di_origine_scelte = scelta_subreddit (cartella_user, upvoted)
-		print(sub_di_origine_scelte)
-		#TODO: piuttosto che questo check sciocco
-		#creare un file con una lista di tutti i subreddit interessanti
-		if upvote in sub_di_origine_scelte: 
-			listone.append(url.rstrip('?1'))
-			
-			#YODO: se l'url è in lista ed il file è nel computer salta il resto e togli l'upvote.
-			if doppione(url, lista_urls):
-				continue
-			else:			
-				if str(url).endswith('.jpg') or str(url).rstrip('?1').endswith('.png') or str(url).endswith('.gif'):
-					lista_immagini.append(url.rstrip('?1'))
-				elif str(url).startswith('https://gfycat.com/'):
-					sfnome = os.path.basename(url)
-					sfinfo = sfigatto.query_gfy(sfnome)
-					#pprint.pprint (sfinfo)
-					sfurl = sfinfo['gfyItem']['mp4Url']
-					#video = 'https://giant.gfycat.com/' + str(upvote.url)[18:] + '.webm'
-					lista_video.append(sfurl)
-				else:
-					lista_immagini.append(url.rstrip('?1'))
-		#pprint.pprint(listone)
-	#printa_post(upvoted)
-	return (lista_immagini, lista_video)
 	
 def txt_upvote_passati():
 	#TODO: cerca la lista dei doppioni in PATH_SLUT. Se c'è l'apre e si prepara ad
 	#controllare se i post dell'utente già ci sono e nel caso li salto (e toglie l'upvote)
 	#aggiunge i post mancanti
 	os.chdir(PATH_SLUT)
-	if not os.path.isfile(os.path.join(PATH_SLUT, 'listone.txt')):
+	if not os.path.isfile(os.path.join(PATH_SLUT, 'lista_upvote.txt')):
 		modo = 'w+'
 	else:
-		modo = 'a+'
+		modo = 'r+'
 	#with open ('listone.txt', modo) as lista:
 	#	return lista
-	with open ('lista_upvote.txt', modo) as lista:
-		return lista
+	print ('modo del listone: ', modo)
+	lista = open ('lista_upvote.txt', modo)
+	return lista
 	
-def chek_doppione(nuovi_url, file_passato):
-	lettura = file_passato.read()
-	for url in nuovi_url:
-	#Se l'Url non è nella scheda, prosegui e vai a salvarlo
-		if url not in lettura:
-			print (url + ' è nuovo! SLURP')
-			file_passato.write(url)
-			return False
-		#se l'Url è nella scheda, vedi se c'è il file a cui si riferisce, se no, vai a salvarlo
-		elif not os.path.isfile(os.path.join(PATH_SLUT_IMG, os.path.basename(url))) or os.path.isfile(os.path.join(PATH_SLUT_VID, os.path.basename(url))):
-			print('Url già presente in lista, ma file assente!')
-			scelta = input('vuoi salvare il file: ' + str(url) +'? S/N')
-			while scelta.lower() != 'n' or scelta.lower() != 's':	
+def check_doppione(post, lista_passato, file_passato):
+	url = post.url
+	print('check doppione: ', url)
+	for rigo in lista_passato:
+		if url in rigo:
+			nome = os.path.basename(url)
+			
+			immag = os.path.isfile(os.path.join(PATH_SLUT_IMG, nome))
+			vid = os.path.isfile(os.path.join(PATH_SLUT_VID, nome))
+			gfy = os.path.isfile(os.path.join(PATH_SLUT_VID, nome + '.mp4'))
+			gifv = os.path.isfile(os.path.join(PATH_SLUT_VID, nome[:-4] + 'mp4'))
+			print (immag, vid,  gfy, gifv)
+			
+			#controlla se il file esiste
+			if not (immag or vid or gfy or gifv):
+				print('Url già presente in lista, ma file assente!')
+				while True:
+					scelta = input('vuoi salvare il file: ' + str(url) +'? S/N\n')
+					if scelta.lower() in ['n', 's']:
+						break
 				if scelta.lower() == 's':
 					return False
 				elif scelta.lower() == 'n':
-					return True
-		#se l'url è nella lista ed esiste pure il file allora è proprio un doppione da eliminare
-		else:
-			print(url + ' già presente, con relativo file. DOPPIONISSIMO!')
-			return True
-			#TODO: controllare se il file esiste ancora nella cartella...
+					DOPPIONI.append(post)
+					return True			
+			else:
+				print(url + ' già presente, con relativo file. DOPPIONISSIMO!')
+				DOPPIONI.append(post)
+				return True	
+		
+		else: continue
+			#cerca nel prossimo rigo
+	print (url + ' è nuovo! SLURP')
+	file_passato.write(url + '\n')
+	return False
 	
-	
-def img(lista):
-	for i in range(len(lista)):
-		res = requests.get(lista[i])
-		res.raise_for_status()
-		if lista[i].endswith('.gifv'):
-			lista[i] = lista[i][:-4] + 'mp4'
-			imageFile = open(os.path.join(PATH_SLUT_IMG, os.path.basename(lista[i])), 'wb')
-		else:		
-			imageFile = open(os.path.join(PATH_SLUT_IMG, os.path.basename(lista[i])) , 'wb')
-		salva(imageFile, res)
+def formato(post, sfigatto):
+	'''smista i post tra i vari formati e li avvia al salvataggio, restituendo
+	le diverse liste dei post smistati pronti per essere rimossi, riutilizzati'''
+	print('siamo in formato')	
+	pre_url = post.url
+	url = str(pre_url)#.rstrip('?1')
+	if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
+	#if str(url).endswith('.jpg') or str(url).rstrip('?1').endswith('.png') or str(url).endswith('.gif'):
+		print ('abbiamo a che fare con una immagine!\n' + url)
+		img(url)
+		LISTA_IMMAGINI.append(post)
+	elif url.startswith('http://imgur.com'):
+		print ('abbiamo a che fare con una immagine IMGUR!\n' + url)
+		url = url + '.jpg'
+		img(url)
+		LISTA_IMMAGINI.append(post)
+	elif url.startswith('https://gfycat.com/'):
+		print ("siamo su gfycat!", url)
+		sfnome = os.path.basename(url)
+		sfinfo = sfigatto.query_gfy(sfnome)
+		#pprint.pprint (sfinfo)
+		sfurl = sfinfo['gfyItem']['mp4Url']
+		vid(sfurl)
+		LISTA_VIDEO.append(post)
+	elif url.endswith('.gifv'):
+		print ("siamo su imgur con una GIFV!", url)
+		down_gifv(url)
+		LISTA_GIFV.append(post)
+	else:
+		print ('oddio, dove siamo?', url)
+		IRRISOLTI.append(post)		
 
-def vid(lista):	
-	for i in range(len(lista)):
-		res = requests.get(lista[i])
-		res.raise_for_status()	
-		vidFile = open(os.path.join(PATH_SLUT_VID, os.path.basename(lista[i])) , 'wb')
-		salva (vidFile, res)
+	return LISTA_IMMAGINI, LISTA_VIDEO, IRRISOLTI
+	
+def down_gifv (url):
+	#UNICO CHE NON RICEVE UNA LISTA MA UN URL, UNIFORMARE???
+	#Questo vale solo per le gifv del sito IMGUR.COM
+	print('FIGVVVAFA?')
+	res = requests.get(url)
+	res.raise_for_status()
+	soup = bs4.BeautifulSoup(res.text, "html.parser")
+	elem = soup.select("body div source")
+	#print(url)
+	#print(len(elem))
+	#print (elem)
+	ind = 'http:' + (elem[0]['src'])
+	#print(elem[0]['src'])
+	if os.path.isfile(os.path.join(PATH_SLUT_VID, os.path.basename(ind))):
+		print('File già esistente!: ', ind)
+		return
+	res = requests.get(ind)
+	res.raise_for_status()	
+	vidFile = open(os.path.join(PATH_SLUT_VID, os.path.basename(ind)) , 'wb')
+	salva (vidFile, res)
+	#return elem[0]['src']
+	
+def img(url):
+	if os.path.isfile(os.path.join(PATH_SLUT_IMG, os.path.basename(url))):
+		print('File già esistente!: ', url)
+		return
+	res = requests.get(url)
+	res.raise_for_status()
+	imageFile = open(os.path.join(PATH_SLUT_IMG, os.path.basename(url)), 'wb')
+	salva(imageFile, res)
+
+def vid(url):
+	if os.path.isfile(os.path.join(PATH_SLUT_VID, os.path.basename(url))):
+		print('File già esistente!: ', url)
+		return
+	res = requests.get(url)
+	res.raise_for_status()	
+	vidFile = open(os.path.join(PATH_SLUT_VID, os.path.basename(url)), 'wb')
+	salva (vidFile, res)
 	
 def salva(path, res):
 	for pezzo in res.iter_content(100000):
