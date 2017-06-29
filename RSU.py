@@ -19,17 +19,16 @@ LISTA_VIDEO = []
 LISTA_GIFV = []
 IRRISOLTI = []
 DOPPIONI = []
+LISTA_ALBUM = []
 
 def main():
 	print('partiti!')
 	sfigatto = GfycatClient()
 	redditore, cartella_user = reddit_login()
 	
-	lista_upvotes = crea_lista_up(redditore, sfigatto, cartella_user)
+	lista_upvotes = crea_lista_up(redditore)
 	
-	sub_upvotes = set()
-	for el in lista_upvotes:
-		sub_upvotes.add((str(el.subreddit)))
+	sub_upvotes = prepara_sub
 	pprint.pprint (sub_upvotes)
 	
 	percorso, sub_scelte = scelta_subreddit(cartella_user, lista_upvotes)
@@ -108,9 +107,9 @@ def remove_upvote(el):
 			break
 			
 def selezione_post (lista_upvotes, sub_scelte):
-	'''prende la listadi submission degli upvotes dell'utente, e le sub indicate come
-	interessanti, restituisce una lista contenente i post upvotati 
-	provenienti da quelle sub'''
+	'''prende la lista di submission degli upvotes dell'utente, e le sub 
+	indicate come interessanti, restituisce una lista contenente i post 
+	upvotati provenienti da quelle sub'''
 	#url_selezionati = list()
 	post_selezionati = list()
 	for up in lista_upvotes:
@@ -180,21 +179,31 @@ def crea_prawini(configFile):
 		fileini.write('client_id=IIjAZV_ce3rkgA\n')
 		fileini.write('client_secret=qXdKaWzr9CxBEsFGto0IEgHtKEg')
 
-def crea_lista_up(redditore, sfigatto, cartella_user):
-	'''restituisce una lista di submission, per ogni elemento
-	puoi accedere alla sua subreddit con:
+def crea_lista_up(redditore):
+	'''Prende il redditore, e restituisce una lista contenente
+	i post upvotati. 
+	Per ogni elemento puoi accedere alla sua subreddit con:
 	lista[el].subreddit'''
 	
 	lista_up = list()
 	
 	upvoted = redditore.upvoted()
+	
 	num = 1
 	for upvote in upvoted:
 		lista_up.append(upvote)
 		printa_up(num, upvote)
 		num += 1
 	return lista_up
-	
+
+def prepara_sub(lista_upvotes):
+	'''Prende la lista degli upvotes dell'utente e restituisce un set 
+	che contiene le sub di origine dei post upvotati'''
+	sub_origine = set()
+	for el in lista_upvotes:
+		sub_origine.add((str(el.subreddit)))
+	return sub_origine
+		
 def printa_up(numero, upvotato):
 	sub = str(upvotato.subreddit)
 	lunghezza = len(sub)
@@ -271,7 +280,7 @@ def txt_upvote_passati():
 	
 def check_doppione(post, lista_passato, file_passato):
 	url = post.url
-	print('check doppione: ', url)
+	print('\ncheck doppione: ', url)
 	for rigo in lista_passato:
 		if url in rigo:
 			nome = os.path.basename(url)
@@ -317,17 +326,34 @@ def formato(post, sfigatto):
 		print ('abbiamo a che fare con una immagine!\n' + url)
 		da_salvare(url, PATH_SLUT_IMG)
 		LISTA_IMMAGINI.append(post)
+	elif url.startswith('http://imgur.com/a/'):
+		#BISOGNA TENERE CONTO NELLE LISTE sia delle immagini che dell'url del post???
+		#COME LO GIOSTRO?
+		
+		print ('abbiamo a che fare con ALBUM IMGUR!\n' + url)
+		url = album_imgur(url) 
+		LISTA_ALBUM.append(post)
 	elif url.startswith('http://imgur.com'):
 		print ('abbiamo a che fare con una immagine IMGUR!\n' + url)
 		url = 'https://i.imgur.com' + os.path.basename(url) + '.jpg'
 		da_salvare(url, PATH_SLUT_IMG)
 		LISTA_IMMAGINI.append(post)
-	elif url.startswith('https://gfycat.com/'):
+	elif url.startswith('https://imgur.com'):
+		print ('HTTPS IMGUR!\n' + url)
+		url = decifra_imgur_https(url)
+		print(url)
+		da_salvare(url, PATH_SLUT_IMG)
+		if url.endswith('.jpg'):
+			LISTA_IMMAGINI.append(post)
+		elif url.endswith('.mp4'):
+			LISTA_VIDEO.append(post)
+	elif url.startswith('https://gfycat.com/') or url.startswith('https://giant.gfycat.com/'):
 		print ("siamo su gfycat!", url)
 		sfnome = os.path.basename(url)
 		sfinfo = sfigatto.query_gfy(sfnome)
 		#pprint.pprint (sfinfo)
 		sfurl = sfinfo['gfyItem']['mp4Url']
+		print(sfurl)
 		da_salvare(sfurl, PATH_SLUT_VID)
 		LISTA_VIDEO.append(post)
 	elif url.endswith('.gifv'):
@@ -335,10 +361,38 @@ def formato(post, sfigatto):
 		down_gifv(url)
 		LISTA_GIFV.append(post)
 	else:
-		print ('oddio, dove siamo?', url)
+		print ('***********ODDIO!!! dove siamo?!?********', url)
 		IRRISOLTI.append(post)		
 
 	return LISTA_IMMAGINI, LISTA_VIDEO, IRRISOLTI
+
+def album_imgur(url):
+	res = requests.get(url)
+	res.raise_for_status()
+	soup = bs4.BeautifulSoup(res.text, "html.parser")
+	album = soup.select("a img[src]")#("[class==post-image-container]")
+	for num in range(len(album)):	
+		foto = 'http:' + album[num]['src']
+		if foto.endswith('.jpg'):
+			print('foto dell album', foto)
+			da_salvare(foto, PATH_SLUT_IMG)
+		if foto.endswith('.gifv'):
+			down_gifv(url)
+					
+		
+
+
+def decifra_imgur_https (url):
+	res = requests.get(url)
+	res.raise_for_status()
+	soup = bs4.BeautifulSoup(res.text, "html.parser")
+	elem = soup.select("body div source")
+	try:
+		ind = 'https:' + (elem[0]['src'])
+	except:
+		elem = soup.select("body div img")
+		ind = 'https:' + (elem[0]['src'])
+	return ind
 	
 def down_gifv (url):
 	#UNICO CHE NON RICEVE UNA LISTA MA UN URL, UNIFORMARE???
@@ -348,6 +402,7 @@ def down_gifv (url):
 	res.raise_for_status()
 	soup = bs4.BeautifulSoup(res.text, "html.parser")
 	elem = soup.select("body div source")
+	print(elem)
 	#print(url)
 	#print(len(elem))
 	#print (elem)
@@ -372,25 +427,7 @@ def da_salvare (url, cartella_file):
 	res.raise_for_status()
 	salvato = open(os.path.join(cartella_file, os.path.basename(url)), 'wb')
 	salva(salvato, res)
-	
-def img(url):
-	if os.path.isfile(os.path.join(PATH_SLUT_IMG, os.path.basename(url))):
-		print('File già esistente!: ', url)
-		return
-	res = requests.get(url)
-	res.raise_for_status()
-	imageFile = open(os.path.join(PATH_SLUT_IMG, os.path.basename(url)), 'wb')
-	salva(imageFile, res)
-
-def vid(url):
-	if os.path.isfile(os.path.join(PATH_SLUT_VID, os.path.basename(url))):
-		print('File già esistente!: ', url)
-		return
-	res = requests.get(url)
-	res.raise_for_status()	
-	vidFile = open(os.path.join(PATH_SLUT_VID, os.path.basename(url)), 'wb')
-	salva (vidFile, res)
-	
+		
 def salva(path, res):
 	for pezzo in res.iter_content(100000):
 		path.write(pezzo)
