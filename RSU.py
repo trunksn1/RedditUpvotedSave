@@ -6,6 +6,10 @@ import bs4, praw, send2trash
 
 from gfycat.client import GfycatClient
 
+#regex = r'http.*imgur.*/[0-9a-zA-Z]*(jpeg|jpg|png|gif)? | http.*gfycat.*(jpeg|jpg|png|gif|gfv|gifv|gfy)?'
+#regex = r'http.*imgur[0-9a-zA-Z/\.]*|http.*gfycat[0-9a-zA-Z/\.]*'
+regex = r'^http.*'
+
 FILE_PRAW = 'praw.ini'
 PATH_SLUT = 'Y:\\Giochi\\Mega'
 PATH_SLUT_IMG = 'Y:\\Giochi\\Mega\\nsfw_img'
@@ -73,7 +77,7 @@ def main():
 	#		remove_upvote(el)
 
 def parse_commenti(post):
-	patt_imgur = re.compile(r'.*imgur.*\s|.*gfycat.*\s')
+	patt_imgur = re.compile(regex)
 	post.comments.replace_more(limit=0)
 	comment_queue = post.comments[:]  # Seed with top-level
 	while comment_queue:
@@ -82,24 +86,27 @@ def parse_commenti(post):
 		#comment =  comment.encode('ascii', 'replace')
 		cerca = patt_imgur.search(str(bytestring, 'utf-8'))
 		if cerca:
-			print (type(cerca))
+			#print (type(cerca))
 			print (cerca.group(0))
+			try:
+				print(cerca.group(1))
+			except:
+				pass
 		comment_queue.extend(comment.replies)
 	#TODO legge i commenti in cerca di album ed affini
 	
-
 def remove_upvote(el):
 	print('sto per togliere l\'upvote a: ', el.subreddit, el.title.encode(errors='replace'), el.url, el.shortlink)
 	while True:
 		opzione = input("posso togliere gli upvote dai post oramai salvati? [s/n]")
 		if opzione.lower() not in ['s', 'n']:
+			print('risposta errata')
 			continue
 		elif opzione.lower() == 's':
+			print("mò levo tutto! ADDIO ", el)
 			el.clear_vote()
 			break
 			
-			
-
 def selezione_post (lista_upvotes, sub_scelte):
 	'''prende la listadi submission degli upvotes dell'utente, e le sub indicate come
 	interessanti, restituisce una lista contenente i post upvotati 
@@ -246,7 +253,6 @@ def scelta_subreddit(cartella_user, upvoted):
 				listasub.append(upvoted.subreddit)
 			return cartella_user, listasub
 		else: continue
-
 	
 def txt_upvote_passati():
 	#TODO: cerca la lista dei doppioni in PATH_SLUT. Se c'è l'apre e si prepara ad
@@ -271,13 +277,14 @@ def check_doppione(post, lista_passato, file_passato):
 			nome = os.path.basename(url)
 			
 			immag = os.path.isfile(os.path.join(PATH_SLUT_IMG, nome))
+			singola_immag = os.path.isfile(os.path.join(PATH_SLUT_IMG, nome + '.jpg'))
 			vid = os.path.isfile(os.path.join(PATH_SLUT_VID, nome))
 			gfy = os.path.isfile(os.path.join(PATH_SLUT_VID, nome + '.mp4'))
 			gifv = os.path.isfile(os.path.join(PATH_SLUT_VID, nome[:-4] + 'mp4'))
-			print (immag, vid,  gfy, gifv)
+			print (immag, singola_immag, vid,  gfy, gifv)
 			
 			#controlla se il file esiste
-			if not (immag or vid or gfy or gifv):
+			if not (immag or vid or gfy or gifv or singola_immag):
 				print('Url già presente in lista, ma file assente!')
 				while True:
 					scelta = input('vuoi salvare il file: ' + str(url) +'? S/N\n')
@@ -308,12 +315,12 @@ def formato(post, sfigatto):
 	if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
 	#if str(url).endswith('.jpg') or str(url).rstrip('?1').endswith('.png') or str(url).endswith('.gif'):
 		print ('abbiamo a che fare con una immagine!\n' + url)
-		img(url)
+		da_salvare(url, PATH_SLUT_IMG)
 		LISTA_IMMAGINI.append(post)
 	elif url.startswith('http://imgur.com'):
 		print ('abbiamo a che fare con una immagine IMGUR!\n' + url)
-		url = url + '.jpg'
-		img(url)
+		url = 'https://i.imgur.com' + os.path.basename(url) + '.jpg'
+		da_salvare(url, PATH_SLUT_IMG)
 		LISTA_IMMAGINI.append(post)
 	elif url.startswith('https://gfycat.com/'):
 		print ("siamo su gfycat!", url)
@@ -321,7 +328,7 @@ def formato(post, sfigatto):
 		sfinfo = sfigatto.query_gfy(sfnome)
 		#pprint.pprint (sfinfo)
 		sfurl = sfinfo['gfyItem']['mp4Url']
-		vid(sfurl)
+		da_salvare(sfurl, PATH_SLUT_VID)
 		LISTA_VIDEO.append(post)
 	elif url.endswith('.gifv'):
 		print ("siamo su imgur con una GIFV!", url)
@@ -346,14 +353,25 @@ def down_gifv (url):
 	#print (elem)
 	ind = 'http:' + (elem[0]['src'])
 	#print(elem[0]['src'])
-	if os.path.isfile(os.path.join(PATH_SLUT_VID, os.path.basename(ind))):
-		print('File già esistente!: ', ind)
-		return
-	res = requests.get(ind)
-	res.raise_for_status()	
-	vidFile = open(os.path.join(PATH_SLUT_VID, os.path.basename(ind)) , 'wb')
-	salva (vidFile, res)
+	da_salvare(ind, PATH_SLUT_VID)
+	#if os.path.isfile(os.path.join(PATH_SLUT_VID, os.path.basename(ind))):
+	#	print('File già esistente!: ', ind)
+	#	return
+	#res = requests.get(ind)
+	#res.raise_for_status()	
+	#vidFile = open(os.path.join(PATH_SLUT_VID, os.path.basename(ind)) , 'wb')
+	#salva (vidFile, res)
+	
 	#return elem[0]['src']
+	
+def da_salvare (url, cartella_file):
+	if os.path.isfile(os.path.join(cartella_file, os.path.basename(url))):
+		print('File già esistente!: ', url)
+		return
+	res = requests.get(url)
+	res.raise_for_status()
+	salvato = open(os.path.join(cartella_file, os.path.basename(url)), 'wb')
+	salva(salvato, res)
 	
 def img(url):
 	if os.path.isfile(os.path.join(PATH_SLUT_IMG, os.path.basename(url))):
