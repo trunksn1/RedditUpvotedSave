@@ -277,8 +277,9 @@ def formato(post, sfigatto):
 		url = album_imgur(url) 
 		LISTA_ALBUM.append(post)
 	elif url.startswith('http://imgur.com'):
-		print ('abbiamo a che fare con una immagine IMGUR!\n' + url)
-		url = 'https://i.imgur.com' + os.path.basename(url) + '.jpg'
+		print ('abbiamo a che fare con una immagine IMGUR!\n')
+		url = 'https://i.imgur.com//' + os.path.basename(url) + '.jpg'
+		print (str(url))
 		da_salvare(url, PATH_SLUT_IMG)
 		LISTA_IMMAGINI.append(post)
 	elif url.startswith('https://imgur.com'):

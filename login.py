@@ -53,6 +53,7 @@ def inizializza(username, cartella):
 
 def crea_prawini(configFile):
 	print('creo praw.ini')
+	FILE_PRAW = 'praw.ini'
 	with open (FILE_PRAW, 'w') as fileini:
 		'''Crea il file praw.ini da usare successivamente'''
 		fileini.write('[rus]\n')
