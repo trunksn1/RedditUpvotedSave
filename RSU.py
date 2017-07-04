@@ -14,6 +14,8 @@ regex = r'^http.*' #|www).*'
 PATH_SLUT = 'Y:\\Giochi\\Mega'
 PATH_SLUT_IMG = 'Y:\\Giochi\\Mega\\nsfw_img'
 PATH_SLUT_VID = 'Y:\\Giochi\\Mega\\nsfw_vid'
+PATH_SLUT_COM = 'Y:\\Giochi\\Mega\\nsfw_com'
+
 LISTA_IMMAGINI = []
 LISTA_VIDEO = []
 LISTA_GIFV = []
@@ -22,6 +24,7 @@ DOPPIONI = []
 IRRISOLTI = []
 DIZ_CLEANER ={}
 LISTE = [LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV,]
+COMMENTI = []
 
 def main():
 	print('partiti!')
@@ -70,14 +73,19 @@ def main():
 		smista_formato(elemento, sfigatto)
 		
 	#A questo punto per ogni lista nel megalistone, guarda se gli elementi sono dei doppioni
+	print("LISTE")
+	pprint.pprint(LISTE)
 	for lista_formato in LISTE:
-		for elemento in lista_formato:
+		
+		#Perchè lista_formato[:]??? 
+		#Perchè così iteri su una copia della lista, in modo che quando 
+		#modfichi la lista orginale non stai modificando la copia che stai usando per iterare nel ciclo!
+		
+		for elemento in lista_formato[:]:
 			#Se l'elemento è un doppione lo toglie dalla sua lista di appartenenza
 			if check_doppione(elemento, lista_old_up, file_old_up):
 				lista_formato.remove(elemento)
-		print()
-		pprint.pprint(lista_formato)
-			
+				
 	#Andiamo a salvare:
 	for immagine in LISTA_IMMAGINI:
 		da_salvare(immagine, PATH_SLUT_IMG)
@@ -87,9 +95,7 @@ def main():
 		down_gifv(gifvideo)
 	
 	
-	
-	print('ok fatto')			
-	
+	print('RECAP:')			
 	print (len(LISTA_IMMAGINI), 'immagini salvate')
 	print(LISTA_IMMAGINI)
 	print(len(LISTA_VIDEO), 'video salvati')
@@ -100,12 +106,17 @@ def main():
 	print(IRRISOLTI) 
 	print(len(DOPPIONI), "doppioni")
 	print(DOPPIONI)
-	print (len(DIZ_CLEANER), "DIZ_CLEARE!")
+	print (len(IRRISOLTI), "IRRISOLTI")
+	print(IRRISOLTI)
+	print (len(DIZ_CLEANER), "DIZ_CLEANER")
 	pprint.pprint(DIZ_CLEANER)
+	
 	
 	#Cerchiamo di pescare golosità nei commenti
 	for post in lista_new_up:
-		commenti = parse_commenti(post)
+		parse_commenti(post)
+	for comnmento in commenti:
+		smista_formato(comnmento, sfigatto)
 	
 	rimozione = [LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV, DOPPIONI]
 	
@@ -128,12 +139,13 @@ def parse_commenti(post):
 		if cerca:
 			#print (type(cerca))
 			print (cerca.group(0))
+			COMMENTI.append(cerca.group(0))
 			try:
 				print(cerca.group(1))
+				COMMENTI.append(cerca.group(1))
 			except:
 				pass
 		comment_queue.extend(comment.replies)
-	#TODO legge i commenti in cerca di album ed affini
 	
 def remove_upvote(el):
 	print('sto per togliere l\'upvote a: ', el.subreddit, el.title.encode(errors='replace'), el.url, el.shortlink)

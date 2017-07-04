@@ -46,6 +46,8 @@ def inizializza(username, cartella):
 		os.chdir('y:')
 		os.makedirs(PATH_SLUT_IMG, exist_ok=True)
 		os.makedirs(PATH_SLUT_VID, exist_ok=True)
+		os.makedirs(PATH_SLUT_COM, exist_ok=True)
+		
 	#Se esiste, leggila
 	else:
 		configFile = shelve.open(os.path.join(cartella, 'config'))
