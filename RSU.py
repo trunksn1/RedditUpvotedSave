@@ -9,27 +9,36 @@ from login import reddit_login, inizializza, crea_prawini
 
 #regex = r'http.*imgur.*/[0-9a-zA-Z]*(jpeg|jpg|png|gif)? | http.*gfycat.*(jpeg|jpg|png|gif|gfv|gifv|gfy)?'
 #regex = r'http.*imgur[0-9a-zA-Z/\.]*|http.*gfycat[0-9a-zA-Z/\.]*'
-regex = r'^http.*'
+regex = r'^http.*' #|www).*'
 
-FILE_PRAW = 'praw.ini'
 PATH_SLUT = 'Y:\\Giochi\\Mega'
 PATH_SLUT_IMG = 'Y:\\Giochi\\Mega\\nsfw_img'
 PATH_SLUT_VID = 'Y:\\Giochi\\Mega\\nsfw_vid'
 LISTA_IMMAGINI = []
 LISTA_VIDEO = []
 LISTA_GIFV = []
-IRRISOLTI = []
 DOPPIONI = []
-LISTA_ALBUM = []
+#LISTA_ALBUM = []
+IRRISOLTI = []
+LISTE = [LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV,]
 
 def main():
 	print('partiti!')
+	
+	#Fase preparatoria dei login e delle configurazioni
 	sfigatto = GfycatClient()
 	redditore, cartella_user = reddit_login()
 	
+	#creo la lista degli upvotes e la stampo a schermo
 	lista_upvotes = crea_lista_up(redditore)
+	num = 1
+	for el in lista_upvotes:
+		printa_up(num, el)
+		num += 1
 	
-	sub_upvotes = prepara_sub
+	#creo un set delle sub in cui sono stati postati i post upvotati
+	#e la stampo
+	sub_upvotes = prepara_sub(lista_upvotes)
 	pprint.pprint (sub_upvotes)
 	
 	percorso, sub_scelte = scelta_subreddit(cartella_user, lista_upvotes)
@@ -42,15 +51,39 @@ def main():
 		#TODO: Chiedi se vuoi salvare questa lista in un file da poter riutilizzare
 		print ('path')
 		
-	elenco_old_up = txt_upvote_passati()
+		
+	#Crea/Legge il file con i vecchi post upvotati, preparando così il controllo per i doppioni	
+	file_old_up = txt_upvote_passati()
+	lista_old_up = file_old_up.readlines()
 	
-	lista_old_up = elenco_old_up.readlines()
+	#Seleziono i post upvotati provenienti dalle sub indicate prima
 	lista_new_up = selezione_post (lista_upvotes, sub_scelte)
+	print('printo i submission selezionati!\n')
+	num = 1
+	for post in lista_new_up:
+		printa_up(num, post)
+		num += 1
 	
+	#Da ogni post nella lista creata viene estrapolato l'url a cui si riferisce e questo inserito in una lista pronto per essere prima checkato per doppione, e poi salvato
 	for elemento in lista_new_up:
-		if not check_doppione(elemento, lista_old_up, elenco_old_up):
-			formato(elemento, sfigatto)
+		smista_formato(elemento, sfigatto)
+		
+	#A questo punto per ogni lista nel megalistone, guarda se gli elementi sono dei doppioni
+	for lista_formato in LISTE:
+		for elemento in lista_formato:
+			#Se l'elemento è un doppione lo toglie dalla sua lista di appartenenza
+			if check_doppione(elemento, lista_old_up, file_old_up):
+				lista_formato.remove(elemento)
+		pprint.pprint(lista_formato)
 			
+	#Andiamo a salvare:
+	for immagine in LISTA_IMMAGINI:
+		da_salvare(immagine, PATH_SLUT_IMG)
+	for video in LISTA_VIDEO:
+		da_salvare(video, PATH_SLUT_IMG)
+	for gifvideo in LISTA_GIFV:
+		down_gifv(gifvideo)
+		
 	print('ok fatto')			
 	
 	print ('immagini salvate')
@@ -64,6 +97,7 @@ def main():
 	print("doppioni")
 	print(DOPPIONI)
 	
+	#Cerchiamo di pescare golosità nei commenti
 	for post in lista_new_up:
 		commenti = parse_commenti(post)
 	
@@ -108,47 +142,44 @@ def remove_upvote(el):
 			break
 			
 def selezione_post (lista_upvotes, sub_scelte):
-	'''prende la lista di submission degli upvotes dell'utente, e le sub 
-	indicate come interessanti, restituisce una lista contenente i post 
-	upvotati provenienti da quelle sub'''
-	#url_selezionati = list()
+	'''prende la lista con gli upvotes dell'utente, e le sub indicate 
+	restituisce una lista contenente dei post upvotati provenienti solo 
+	da quelle sub'''
+
 	post_selezionati = list()
 	for up in lista_upvotes:
 		#url = up.url
 		sub = up.subreddit
 		if sub in sub_scelte:
-			post_selezionati.append(up)
-	print('printo i submission selezionati!\n')
-	print (post_selezionati)
+			post_selezionati.append(up)	
 	return post_selezionati
 	
 def crea_lista_up(redditore):
-	'''Prende il redditore, e restituisce una lista contenente
-	i post upvotati. 
-	Per ogni elemento puoi accedere alla sua subreddit con:
+	'''Restituisce una lista contenente	i post upvotati dal redditor. 
+	Per accedere alla subreddit di ogni elemento si fa:
 	lista[el].subreddit'''
 	
 	lista_up = list()
 	
+	#.upvoted() Return a ListingGenerator for items the user has upvoted.
 	upvoted = redditore.upvoted()
 	
-	num = 1
+	#crea la lista
 	for upvote in upvoted:
 		lista_up.append(upvote)
-		printa_up(num, upvote)
-		num += 1
 	return lista_up
 
 def prepara_sub(lista_upvotes):
 	'''Prende la lista degli upvotes dell'utente e restituisce un set 
 	che contiene le sub di origine dei post upvotati'''
+	print("siamo in prepara_sub")
 	sub_origine = set()
 	for el in lista_upvotes:
 		sub_origine.add((str(el.subreddit)))
 	return sub_origine
 		
-def printa_up(numero, upvotato):
-	sub = str(upvotato.subreddit)
+def printa_up(numero, post):
+	sub = str(post.subreddit)
 	lunghezza = len(sub)
 	if lunghezza > 12:
 		spazi = '\t'
@@ -156,16 +187,15 @@ def printa_up(numero, upvotato):
 		spazi = '\t\t'
 	else:
 		spazi = '\t\t\t'
-	print (str(numero) + ') /r/',upvotato.subreddit, spazi, upvotato.title.encode(errors='replace'))
+	print (str(numero) + ') /r/',post.subreddit, spazi, post.title.encode(errors='replace'))
 
 def scelta_subreddit(cartella_user, upvoted):
-	'''passandogli la path della cartella user e la lista di upvotes
-	restituisce una tupla contenente, il percorso della cartella e la
-	lista delle sub scelte, oppure il percorso per il file txt ed la
-	variabile file.read() se già esistente'''
-	
-	os.chdir(cartella_user)
-	
+	'''Chiede le subreddit in cui si trovano i post_upvotati che vuoi salvare
+	passando la path della cartella user e la lista di upvotes
+	restituisce una tupla contenente: 
+	1)il percorso della cartella e la 	lista delle sub scelte, oppure 
+	2)il percorso per il file txt ed la	variabile file.read() se già esistente'''
+		
 	while True:
 		print('\n\n***Hai due possibilità per salvare i file:' +
 		'\n[1]Importare un file di subreddit dalla cartella:' +
@@ -174,6 +204,7 @@ def scelta_subreddit(cartella_user, upvoted):
 		
 		scelta = int(input())
 		
+		#TODO L'idea è di mettere questi dati in un file config
 		if scelta == 1:
 			print(os.listdir(cartella_user))
 			sceltatxt = input('quale file? specifica anche l\'estensione\t')
@@ -196,6 +227,7 @@ def scelta_subreddit(cartella_user, upvoted):
 				sub_indicata = input('quale subreddit scegli? bada bene a come scrivi! Lascia bianco per proseguire\n')
 				listasub.append(sub_indicata)
 				print(listasub)
+				
 			#TODO: chiedi all'utente se vuole creare un file con queste 
 			#specifiche sub che ha scelto, o se ne vuole modificare uno esistente
 			return cartella_user, listasub
@@ -207,6 +239,8 @@ def scelta_subreddit(cartella_user, upvoted):
 		else: continue
 	
 def txt_upvote_passati():
+	'''crea o legge, poi restituisce il file txt che conterrà/contiene
+	l'url dei vecchi post upvotati'''
 	#TODO: cerca la lista dei doppioni in PATH_SLUT. Se c'è l'apre e si prepara ad
 	#controllare se i post dell'utente già ci sono e nel caso li salto (e toglie l'upvote)
 	#aggiunge i post mancanti
@@ -221,10 +255,10 @@ def txt_upvote_passati():
 	lista = open ('lista_upvote.txt', modo)
 	return lista
 	
-def check_doppione(post, lista_passato, file_passato):
-	url = post.url
+def check_doppione(url, lista_passato, file_passato):
 	print('\ncheck doppione: ', url)
 	for rigo in lista_passato:
+		#Se l'url che sto controllando è già nella lista di upvote vecchi allora controllo se il file esiste effettivamente
 		if url in rigo:
 			nome = os.path.basename(url)
 			
@@ -245,52 +279,59 @@ def check_doppione(post, lista_passato, file_passato):
 				if scelta.lower() == 's':
 					return False
 				elif scelta.lower() == 'n':
-					DOPPIONI.append(post)
+					DOPPIONI.append(url)
 					return True			
 			else:
 				print(url + ' già presente, con relativo file. DOPPIONISSIMO!')
-				DOPPIONI.append(post)
+				DOPPIONI.append(url)
 				return True	
 		
 		else: continue
 			#cerca nel prossimo rigo
+			
 	print (url + ' è nuovo! SLURP')
 	file_passato.write(url + '\n')
 	return False
 	
-def formato(post, sfigatto):
-	'''smista i post tra i vari formati e li avvia al salvataggio, restituendo
-	le diverse liste dei post smistati pronti per essere rimossi, riutilizzati'''
-	print('siamo in formato')	
+def smista_formato(post, sfigatto):
+	'''smista i post tra i vari formati e restituisce liste contenente 
+	l'url finali da avviare al check_doppione'''
+	
+	print('siamo in smista_formato')
+	
 	pre_url = post.url
-	url = str(pre_url)#.rstrip('?1')
+	url = str(pre_url)
+	
 	if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
-	#if str(url).endswith('.jpg') or str(url).rstrip('?1').endswith('.png') or str(url).endswith('.gif'):
 		print ('abbiamo a che fare con una immagine!\n' + url)
-		da_salvare(url, PATH_SLUT_IMG)
-		LISTA_IMMAGINI.append(post)
+		#da_salvare(url, PATH_SLUT_IMG)
+		LISTA_IMMAGINI.append(url)
+		
 	elif url.startswith('http://imgur.com/a/'):
 		#BISOGNA TENERE CONTO NELLE LISTE sia delle immagini che dell'url del post???
 		#COME LO GIOSTRO?
-		
 		print ('abbiamo a che fare con ALBUM IMGUR!\n' + url)
-		url = album_imgur(url) 
-		LISTA_ALBUM.append(post)
+		album_imgur(url) 
+		#url = album_imgur(url) 
+		#LISTA_ALBUM.append(url)
+		
 	elif url.startswith('http://imgur.com'):
 		print ('abbiamo a che fare con una immagine IMGUR!\n')
 		url = 'https://i.imgur.com//' + os.path.basename(url) + '.jpg'
 		print (str(url))
-		da_salvare(url, PATH_SLUT_IMG)
-		LISTA_IMMAGINI.append(post)
+		#da_salvare(url, PATH_SLUT_IMG)
+		LISTA_IMMAGINI.append(url)
+		
 	elif url.startswith('https://imgur.com'):
 		print ('HTTPS IMGUR!\n' + url)
 		url = decifra_imgur_https(url)
 		print(url)
-		da_salvare(url, PATH_SLUT_IMG)
-		if url.endswith('.jpg'):
-			LISTA_IMMAGINI.append(post)
+		#da_salvare(url, PATH_SLUT_IMG)
+		if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
+			LISTA_IMMAGINI.append(url)
 		elif url.endswith('.mp4'):
-			LISTA_VIDEO.append(post)
+			LISTA_VIDEO.append(url)
+			
 	elif url.startswith('https://gfycat.com/') or url.startswith('https://giant.gfycat.com/'):
 		print ("siamo su gfycat!", url)
 		sfnome = os.path.basename(url)
@@ -298,17 +339,19 @@ def formato(post, sfigatto):
 		#pprint.pprint (sfinfo)
 		sfurl = sfinfo['gfyItem']['mp4Url']
 		print(sfurl)
-		da_salvare(sfurl, PATH_SLUT_VID)
-		LISTA_VIDEO.append(post)
+		#da_salvare(sfurl, PATH_SLUT_VID)
+		LISTA_VIDEO.append(sfurl)
+		
 	elif url.endswith('.gifv'):
 		print ("siamo su imgur con una GIFV!", url)
-		down_gifv(url)
-		LISTA_GIFV.append(post)
+		#down_gifv(url)
+		LISTA_GIFV.append(url)
+		
 	else:
 		print ('***********ODDIO!!! dove siamo?!?********', url)
 		IRRISOLTI.append(post)		
 
-	return LISTA_IMMAGINI, LISTA_VIDEO, IRRISOLTI
+	return LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV, IRRISOLTI
 
 def album_imgur(url):
 	res = requests.get(url)
@@ -317,15 +360,14 @@ def album_imgur(url):
 	album = soup.select("a img[src]")#("[class==post-image-container]")
 	for num in range(len(album)):	
 		foto = 'http:' + album[num]['src']
-		if foto.endswith('.jpg'):
+		if foto.endswith('.jpg') or foto.endswith('.png') or foto.endswith('.gif'):
 			print('foto dell album', foto)
-			da_salvare(foto, PATH_SLUT_IMG)
+			LISTA_IMMAGINI.append(foto)
+			#da_salvare(foto, PATH_SLUT_IMG)
 		if foto.endswith('.gifv'):
-			down_gifv(url)
+			LISTA_GIFV.append(foto)
+			#down_gifv(url)
 					
-		
-
-
 def decifra_imgur_https (url):
 	res = requests.get(url)
 	res.raise_for_status()

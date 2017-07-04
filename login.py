@@ -21,7 +21,8 @@ def reddit_login(): #COMPLETARE non funziona: il secondo login non va mai in por
 			time.sleep(2)
 			os.chdir('..')
 			shutil.rmtree(cartella, ignore_errors = True)			
-			
+			time.sleep(2)
+			continue
 		else:
 			print('niente exception')
 			print(os.getcwd())
@@ -53,8 +54,7 @@ def inizializza(username, cartella):
 
 def crea_prawini(configFile):
 	print('creo praw.ini')
-	FILE_PRAW = 'praw.ini'
-	with open (FILE_PRAW, 'w') as fileini:
+	with open ('praw.ini', 'w') as fileini:
 		'''Crea il file praw.ini da usare successivamente'''
 		fileini.write('[rus]\n')
 		fileini.write('username=' + configFile['username'] + '\n')
