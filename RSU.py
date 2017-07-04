@@ -84,8 +84,10 @@ def main():
 	for dizionario in LISTA_DIZS:
 		#i dizionari che ho creato hanno come chiave il post e come valore una lista di url
 		for chiave_post in dizionario:
-			print ("CHIAVE_POST", dizionario[chiave_post])
-			print(type(dizionario[chiave_post]))
+			for el in dizionario[chiave_post]:
+				if check_doppione(el, lista_old_up, file_old_up):
+				indice = lista_formato.index(elemento)
+				DOPPIONI.append(lista_formato.pop(indice))
 			
 			
 
