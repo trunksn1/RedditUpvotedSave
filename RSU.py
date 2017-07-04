@@ -18,11 +18,9 @@ LISTA_IMMAGINI = []
 LISTA_VIDEO = []
 LISTA_GIFV = []
 DOPPIONI = []
+#LISTA_ALBUM = []
 IRRISOLTI = []
-DIZ_CAT = {}
-DIZ_ALBIMG = {}
-DIZ_ALBGIFV = {}
-LISTA_DIZS =[DIZ_CAT, DIZ_ALBIMG, DIZ_ALBGIFV,]
+DIZ_CLEANER ={}
 LISTE = [LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV,]
 
 def main():
@@ -75,49 +73,35 @@ def main():
 	for lista_formato in LISTE:
 		for elemento in lista_formato:
 			#Se l'elemento è un doppione lo toglie dalla sua lista di appartenenza
-			if check_doppione(elemento.url, lista_old_up, file_old_up):
-				indice = lista_formato.index(elemento)
-				DOPPIONI.append(lista_formato.pop(indice))
+			if check_doppione(elemento, lista_old_up, file_old_up):
+				lista_formato.remove(elemento)
 		print()
 		pprint.pprint(lista_formato)
-		
-	for dizionario in LISTA_DIZS:
-		#i dizionari che ho creato hanno come chiave il post e come valore una lista di url
-		for chiave_post in dizionario:
-			for el in dizionario[chiave_post]:
-				if check_doppione(el, lista_old_up, file_old_up):
-				indice = lista_formato.index(elemento)
-				DOPPIONI.append(lista_formato.pop(indice))
 			
-			
-
-	#Andiamo a salvare i non doppioni:
+	#Andiamo a salvare:
 	for immagine in LISTA_IMMAGINI:
-		da_salvare(immagine.url, PATH_SLUT_IMG)
+		da_salvare(immagine, PATH_SLUT_IMG)
 	for video in LISTA_VIDEO:
-		da_salvare(video.url, PATH_SLUT_VID)
+		da_salvare(video, PATH_SLUT_VID)
 	for gifvideo in LISTA_GIFV:
-		down_gifv(gifvideo.url)
-		
-	for cat in DIZ_CAT:
-		da_salvare(DIZ_CAT[cat], PATH_SLUT_VID)
-	for foto in DIZ_ALBIMG:
-		da_salvare (DIZ_ALBIMG[foto], PATH_SLUT_IMG)
-	for gifvid in DIZ_ALBGIFV:
-		down_gifv(DIZ_ALBGIFV[gifvid])
-		
+		down_gifv(gifvideo)
+	
+	
+	
 	print('ok fatto')			
 	
-	print ('immagini salvate')
+	print (len(LISTA_IMMAGINI), 'immagini salvate')
 	print(LISTA_IMMAGINI)
-	print('video salvati')
+	print(len(LISTA_VIDEO), 'video salvati')
 	print(LISTA_VIDEO)
-	print('GIFV salvati')	
+	print(len(LISTA_GIFV), 'GIFV salvati')	
 	print(LISTA_GIFV) 
-	print('irrisolti!!!')
+	print(len(IRRISOLTI), 'irrisolti!!!')
 	print(IRRISOLTI) 
-	print("doppioni")
+	print(len(DOPPIONI), "doppioni")
 	print(DOPPIONI)
+	print (len(DIZ_CLEANER), "DIZ_CLEARE!")
+	pprint.pprint(DIZ_CLEANER)
 	
 	#Cerchiamo di pescare golosità nei commenti
 	for post in lista_new_up:
@@ -301,15 +285,15 @@ def check_doppione(url, lista_passato, file_passato):
 				if scelta.lower() == 's':
 					return False
 				elif scelta.lower() == 'n':
-					#DOPPIONI.append(url)
+					DOPPIONI.append(url)
 					return True			
 			else:
 				print(url + ' già presente, con relativo file. DOPPIONISSIMO!')
-				#DOPPIONI.append(url)
+				DOPPIONI.append(url)
 				return True	
 		
 		else: continue
-			
+			#cerca nel prossimo rigo
 			
 	print (url + ' è nuovo! SLURP')
 	file_passato.write(url + '\n')
@@ -323,18 +307,19 @@ def smista_formato(post, sfigatto):
 	
 	pre_url = post.url
 	url = str(pre_url)
-
 	
 	if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
 		print ('abbiamo a che fare con una immagine!\n' + url)
 		#da_salvare(url, PATH_SLUT_IMG)
-		LISTA_IMMAGINI.append(post)
+		LISTA_IMMAGINI.append(url)
+		DIZ_CLEANER[post] = url
 		
 	elif url.startswith('http://imgur.com/a/'):
 		#BISOGNA TENERE CONTO NELLE LISTE sia delle immagini che dell'url del post???
 		#COME LO GIOSTRO?
 		print ('abbiamo a che fare con ALBUM IMGUR!\n' + url)
-		album_imgur(post) 
+		album_imgur(url)
+		DIZ_CLEANER[post] = url 
 		#url = album_imgur(url) 
 		#LISTA_ALBUM.append(url)
 		
@@ -343,7 +328,8 @@ def smista_formato(post, sfigatto):
 		url = 'https://i.imgur.com//' + os.path.basename(url) + '.jpg'
 		print (str(url))
 		#da_salvare(url, PATH_SLUT_IMG)
-		LISTA_IMMAGINI.append(post)
+		LISTA_IMMAGINI.append(url)
+		DIZ_CLEANER[post] = url
 		
 	elif url.startswith('https://imgur.com'):
 		print ('HTTPS IMGUR!\n' + url)
@@ -351,12 +337,13 @@ def smista_formato(post, sfigatto):
 		print(url)
 		#da_salvare(url, PATH_SLUT_IMG)
 		if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
-			LISTA_IMMAGINI.append(post)
+			LISTA_IMMAGINI.append(url)
+			DIZ_CLEANER[post] = url
 		elif url.endswith('.mp4'):
-			LISTA_VIDEO.append(post)
+			LISTA_VIDEO.append(url)
+			DIZ_CLEANER[post] = url
 			
 	elif url.startswith('https://gfycat.com/') or url.startswith('https://giant.gfycat.com/'):
-		DIZ_CAT[post] = []
 		print ("siamo su gfycat!", url)
 		sfnome = os.path.basename(url)
 		sfinfo = sfigatto.query_gfy(sfnome)
@@ -364,12 +351,14 @@ def smista_formato(post, sfigatto):
 		sfurl = sfinfo['gfyItem']['mp4Url']
 		print(sfurl)
 		#da_salvare(sfurl, PATH_SLUT_VID)
-		DIZ_CAT[post].append(sfurl)
+		LISTA_VIDEO.append(sfurl)
+		DIZ_CLEANER[post] = sfurl
 		
 	elif url.endswith('.gifv'):
 		print ("siamo su imgur con una GIFV!", url)
 		#down_gifv(url)
-		LISTA_GIFV.append(post)
+		LISTA_GIFV.append(url)
+		DIZ_CLEANER[post] = url
 		
 	else:
 		print ('***********ODDIO!!! dove siamo?!?********', url)
@@ -377,12 +366,7 @@ def smista_formato(post, sfigatto):
 
 	return LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV, IRRISOLTI
 
-def album_imgur(post):
-	url = post.url
-	
-	#poichè gli album possono contenere più elementi, la k è il post, la v è una lista di elementi
-	DIZ_ALBIMG[post] = []
-	
+def album_imgur(url):
 	res = requests.get(url)
 	res.raise_for_status()
 	soup = bs4.BeautifulSoup(res.text, "html.parser")
@@ -391,10 +375,10 @@ def album_imgur(post):
 		foto = 'http:' + album[num]['src']
 		if foto.endswith('.jpg') or foto.endswith('.png') or foto.endswith('.gif'):
 			print('foto dell album', foto)
-			DIZ_ALBIMG[post].append(foto)
+			LISTA_IMMAGINI.append(foto)
 			#da_salvare(foto, PATH_SLUT_IMG)
 		if foto.endswith('.gifv'):
-			DIZ_ALBGIFV[post].append(foto)
+			LISTA_GIFV.append(foto)
 			#down_gifv(url)
 					
 def decifra_imgur_https (url):
