@@ -9,7 +9,7 @@ from login import reddit_login, inizializza, crea_prawini
 
 #regex = r'http.*imgur.*/[0-9a-zA-Z]*(jpeg|jpg|png|gif)? | http.*gfycat.*(jpeg|jpg|png|gif|gfv|gifv|gfy)?'
 #regex = r'http.*imgur[0-9a-zA-Z/\.]*|http.*gfycat[0-9a-zA-Z/\.]*'
-regex = r'^http.*[^\s]' #|www).*'
+regex = r'http[^\s()]*' #|www).*'
 
 PATH_SLUT = 'Y:\\Giochi\\Mega'
 PATH_SLUT_IMG = 'Y:\\Giochi\\Mega\\nsfw_img'
@@ -22,13 +22,12 @@ LISTA_GIFV = []
 DOPPIONI = []
 #LISTA_ALBUM = []
 IRRISOLTI = []
-DIZ_CLEANER ={}
+DIZ_CLEANER = {}
 LISTE = [LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV,]
 COMMENTI = []
+COMM_IRR = []
 
 def main():
-	print('partiti!')
-	
 	#Fase preparatoria dei login e delle configurazioni
 	sfigatto = GfycatClient()
 	redditore, cartella_user = reddit_login()
@@ -72,12 +71,11 @@ def main():
 	for elemento in lista_new_up:
 		smista_formato(sfigatto, elemento = elemento)
 		#metto qua il parse dei commenti per evitare dopo un altro ciclo identico
-		parse_commenti(elemento)
+		parse_commenti2(elemento)
 		
 		
 	#A questo punto per ogni lista nel megalistone, guarda se gli elementi sono dei doppioni
-	print("LISTE")
-	pprint.pprint(LISTE)
+
 	for lista_formato in LISTE:
 		
 		#Perchè lista_formato[:]??? 
@@ -100,25 +98,17 @@ def main():
 	
 	print('RECAP:')			
 	print (len(LISTA_IMMAGINI), 'immagini salvate')
-	print(LISTA_IMMAGINI)
 	print(len(LISTA_VIDEO), 'video salvati')
-	print(LISTA_VIDEO)
 	print(len(LISTA_GIFV), 'GIFV salvati')	
-	print(LISTA_GIFV) 
 	print(len(IRRISOLTI), 'irrisolti!!!')
-	print(IRRISOLTI) 
 	print(len(DOPPIONI), "doppioni")
-	print(DOPPIONI)
 	print (len(IRRISOLTI), "IRRISOLTI")
-	print(IRRISOLTI)
 	print (len(DIZ_CLEANER), "DIZ_CLEANER")
 	pprint.pprint(DIZ_CLEANER)
 	
 	
-
 	pausa = input("aspetto un tuo segnale per continuare...\n")
 
-	
 	
 	#TODO ADESSO PULIRE GLI UPVOTE E AZZERARE LE LISTE PER I COMMENTI!!!
 	del LISTA_IMMAGINI [:]
@@ -128,8 +118,12 @@ def main():
 	#Cerchiamo di pescare golosità nei commenti
 	print("smistiamo i commenti!!!!")
 	for commento in COMMENTI:
-		smista_formato(sfigatto, commento=commento)
-	
+		try:
+			smista_formato(sfigatto, commento=commento)
+		except:
+			print("ERRORE DI RECUPERO!!")
+			COMM_IRR.append(commento)
+			continue
 	file_old_comm = txt_upvote_passati(PATH_SLUT_COM)
 	lista_old_comm = file_old_comm.readlines()
 
@@ -150,21 +144,15 @@ def main():
 	
 	print('RECAP2:')			
 	print (len(LISTA_IMMAGINI), 'immagini salvate')
-	#print(LISTA_IMMAGINI)
 	print(len(LISTA_VIDEO), 'video salvati')
-	#print(LISTA_VIDEO)
 	print(len(LISTA_GIFV), 'GIFV salvati')	
-	#print(LISTA_GIFV) 
 	print(len(IRRISOLTI), 'irrisolti!!!')
-	#print(IRRISOLTI) 
 	print(len(DOPPIONI), "doppioni")
-	#print(DOPPIONI)
-	print (len(IRRISOLTI), "IRRISOLTI")
-	#print(IRRISOLTI)
 	print (len(DIZ_CLEANER), "DIZ_CLEANER")
-	#pprint.pprint(DIZ_CLEANER)
+	pprint.pprint(DIZ_CLEANER)
 	print(LISTE)
-	#PROVA CON UN ELEMENTO SOLO ALLA VOLTA:
+	print('commenti irrecuperabili\n', COMM_IRR)
+	
 	for lista in (LISTE + DOPPIONI):
 		for post in DIZ_CLEANER:
 			if DIZ_CLEANER[post] in lista:
@@ -180,8 +168,8 @@ def parse_commenti(post):
 		bytestring = comment.body.encode('utf-8', 'replace')
 		#comment =  comment.encode('ascii', 'replace')
 		cerca = patt_imgur.search(str(bytestring, 'utf-8'))
+		print(type(cerca))
 		if cerca:
-			#print (type(cerca))
 			print (cerca.group(0))
 			COMMENTI.append(cerca.group(0))
 			for x in range (1,10):
@@ -192,12 +180,24 @@ def parse_commenti(post):
 				except:
 					pass
 		comment_queue.extend(comment.replies)
-	
+
+def parse_commenti2(post):
+	pattern = re.compile(regex)
+	post.comments.replace_more(limit=0)
+	for commento in post.comments.list():
+		bytestring = commento.body.encode('utf-8', 'replace')
+		#cerca = pattern.search(str(bytestring, 'utf-8'))
+		cerca = pattern.findall(str(bytestring, 'utf-8'))
+		#print(bytestring)
+		#print(cerca)
+		for elem in cerca:
+			COMMENTI.append(elem)
+
 def remove_upvote(el):
 	try:
 		print('sto per togliere l\'upvote a: \n', el.subreddit, el.title.encode(errors='replace'), el.url, el.shortlink)
 	except AttributeError:
-		print("volevo dirti che sto rimuovendo" + str(el))
+		print("volevo dirti che sto rimuovendo\n" + str(el))
 	while True:
 		opzione = input("posso togliere gli upvote dai post oramai salvati? [s/n]")
 		if opzione.lower() not in ['s', 'n']:
@@ -212,6 +212,8 @@ def remove_upvote(el):
 			except:
 				print("non ho tolto niente perchè non ce sò riuscito, probabilmente non mi hai passato un post ma un url!")
 				break
+		elif opzione.lower() == 'n':
+			break
 			
 def selezione_post (lista_upvotes, sub_scelte):
 	'''prende la lista con gli upvotes dell'utente, e le sub indicate 
@@ -410,7 +412,7 @@ def smista_formato(sfigatto, **kwargs):
 			formato(LISTA_VIDEO, url, kwargs, k)
 			
 	elif url.startswith('https://gfycat.com/') or url.startswith('https://giant.gfycat.com/') or url.startswith('https://fat.gfycat.com/'):
-		print ("siamo su gfycat!")
+		print ("siamo su gfycat!\n", url)
 		sfnome = os.path.basename(url)
 		sfinfo = sfigatto.query_gfy(sfnome)
 		#pprint.pprint (sfinfo)
@@ -448,8 +450,11 @@ def album_imgur(url, dizkw, kwk):
 			formato(LISTA_GIFV, foto, dizkw, kwk)
 					
 def decifra_imgur_https (url):
+
 	res = requests.get(url)
 	res.raise_for_status()
+
+		
 	soup = bs4.BeautifulSoup(res.text, "html.parser")
 	elem = soup.select("body div source")
 	try:
