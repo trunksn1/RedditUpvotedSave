@@ -13,7 +13,6 @@ def reddit_login(): #COMPLETARE non funziona: il secondo login non va mai in por
 		try:
 			reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
 			redditore = reddit.user.me()    
-			print('e adesso?')
 		except:
 			print('oops, non riesco a loggare!! Hai sbagliato qualcosa!')
 			print(os.getcwd())

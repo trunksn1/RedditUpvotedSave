@@ -9,12 +9,12 @@ from login import reddit_login, inizializza, crea_prawini
 
 #regex = r'http.*imgur.*/[0-9a-zA-Z]*(jpeg|jpg|png|gif)? | http.*gfycat.*(jpeg|jpg|png|gif|gfv|gifv|gfy)?'
 #regex = r'http.*imgur[0-9a-zA-Z/\.]*|http.*gfycat[0-9a-zA-Z/\.]*'
-regex = r'^http.*' #|www).*'
+regex = r'^http.*[^\s]' #|www).*'
 
 PATH_SLUT = 'Y:\\Giochi\\Mega'
 PATH_SLUT_IMG = 'Y:\\Giochi\\Mega\\nsfw_img'
 PATH_SLUT_VID = 'Y:\\Giochi\\Mega\\nsfw_vid'
-PATH_SLUT_COM = 'Y:\\Giochi\\Mega\\nsfw_com'
+PATH_SLUT_COM = 'Y:\\Giochi\\Mega\\nsfw_com\\'
 
 LISTA_IMMAGINI = []
 LISTA_VIDEO = []
@@ -57,7 +57,7 @@ def main():
 		
 		
 	#Crea/Legge il file con i vecchi post upvotati, preparando così il controllo per i doppioni	
-	file_old_up = txt_upvote_passati()
+	file_old_up = txt_upvote_passati(PATH_SLUT)
 	lista_old_up = file_old_up.readlines()
 	
 	#Seleziono i post upvotati provenienti dalle sub indicate prima
@@ -70,7 +70,10 @@ def main():
 	
 	#Da ogni post nella lista creata viene estrapolato l'url a cui si riferisce e questo inserito in una lista pronto per essere prima checkato per doppione, e poi salvato
 	for elemento in lista_new_up:
-		smista_formato(elemento, sfigatto)
+		smista_formato(sfigatto, elemento = elemento)
+		#metto qua il parse dei commenti per evitare dopo un altro ciclo identico
+		parse_commenti(elemento)
+		
 		
 	#A questo punto per ogni lista nel megalistone, guarda se gli elementi sono dei doppioni
 	print("LISTE")
@@ -92,7 +95,7 @@ def main():
 	for video in LISTA_VIDEO:
 		da_salvare(video, PATH_SLUT_VID)
 	for gifvideo in LISTA_GIFV:
-		down_gifv(gifvideo)
+		down_gifv(gifvideo, cartella_file=PATH_SLUT_VID)
 	
 	
 	print('RECAP:')			
@@ -112,21 +115,62 @@ def main():
 	pprint.pprint(DIZ_CLEANER)
 	
 	
-	#Cerchiamo di pescare golosità nei commenti
-	for post in lista_new_up:
-		parse_commenti(post)
-	for comnmento in commenti:
-		smista_formato(comnmento, sfigatto)
+
+	pausa = input("aspetto un tuo segnale per continuare...\n")
+
 	
+	
+	#TODO ADESSO PULIRE GLI UPVOTE E AZZERARE LE LISTE PER I COMMENTI!!!
+	del LISTA_IMMAGINI [:]
+	del LISTA_VIDEO [:]
+	del LISTA_GIFV [:]
+	
+	#Cerchiamo di pescare golosità nei commenti
+	print("smistiamo i commenti!!!!")
+	for commento in COMMENTI:
+		smista_formato(sfigatto, commento=commento)
+	
+	file_old_comm = txt_upvote_passati(PATH_SLUT_COM)
+	lista_old_comm = file_old_comm.readlines()
+
+	for lista_commenti in LISTE:		
+		for elemento in lista_commenti[:]:
+			#Se l'elemento è un doppione lo toglie dalla sua lista di appartenenza
+			if check_doppione(elemento, lista_old_comm, file_old_comm):
+				lista_commenti.remove(elemento)
+
+	for immagine in LISTA_IMMAGINI:
+		da_salvare(immagine, PATH_SLUT_COM)
+	for video in LISTA_VIDEO:
+		da_salvare(video, PATH_SLUT_COM)
+	for gifvideo in LISTA_GIFV:
+		down_gifv(gifvideo, cartella_file=PATH_SLUT_COM)	
+	pprint.pprint(IRRISOLTI)
 	rimozione = [LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV, DOPPIONI]
 	
-	#PROVA CON UN ELEMENTO SOLO ALLA VOTLA:
-	remove_upvote(DOPPIONI[-1])
+	print('RECAP2:')			
+	print (len(LISTA_IMMAGINI), 'immagini salvate')
+	#print(LISTA_IMMAGINI)
+	print(len(LISTA_VIDEO), 'video salvati')
+	#print(LISTA_VIDEO)
+	print(len(LISTA_GIFV), 'GIFV salvati')	
+	#print(LISTA_GIFV) 
+	print(len(IRRISOLTI), 'irrisolti!!!')
+	#print(IRRISOLTI) 
+	print(len(DOPPIONI), "doppioni")
+	#print(DOPPIONI)
+	print (len(IRRISOLTI), "IRRISOLTI")
+	#print(IRRISOLTI)
+	print (len(DIZ_CLEANER), "DIZ_CLEANER")
+	#pprint.pprint(DIZ_CLEANER)
+	print(LISTE)
+	#PROVA CON UN ELEMENTO SOLO ALLA VOLTA:
+	for lista in (LISTE + DOPPIONI):
+		for post in DIZ_CLEANER:
+			if DIZ_CLEANER[post] in lista:
+				print("andiamo a rimuovere")
+				remove_upvote(post)
 	
-	#for lista in rimozione:
-	#	for el in lista:
-	#		remove_upvote(el)
-
 def parse_commenti(post):
 	patt_imgur = re.compile(regex)
 	post.comments.replace_more(limit=0)
@@ -140,15 +184,20 @@ def parse_commenti(post):
 			#print (type(cerca))
 			print (cerca.group(0))
 			COMMENTI.append(cerca.group(0))
-			try:
-				print(cerca.group(1))
-				COMMENTI.append(cerca.group(1))
-			except:
-				pass
+			for x in range (1,10):
+				try:
+					print("altri range di commenti!!!\n")
+					print(cerca.group(x))
+					COMMENTI.append(cerca.group(x))
+				except:
+					pass
 		comment_queue.extend(comment.replies)
 	
 def remove_upvote(el):
-	print('sto per togliere l\'upvote a: ', el.subreddit, el.title.encode(errors='replace'), el.url, el.shortlink)
+	try:
+		print('sto per togliere l\'upvote a: \n', el.subreddit, el.title.encode(errors='replace'), el.url, el.shortlink)
+	except AttributeError:
+		print("volevo dirti che sto rimuovendo" + str(el))
 	while True:
 		opzione = input("posso togliere gli upvote dai post oramai salvati? [s/n]")
 		if opzione.lower() not in ['s', 'n']:
@@ -156,8 +205,13 @@ def remove_upvote(el):
 			continue
 		elif opzione.lower() == 's':
 			print("mò levo tutto! ADDIO ", el)
-			el.clear_vote()
-			break
+			try:
+				el.clear_vote()
+				pausa = input('\nsono qui per farti andare un passo alla volta. Premi per continuare\n')
+				break
+			except:
+				print("non ho tolto niente perchè non ce sò riuscito, probabilmente non mi hai passato un post ma un url!")
+				break
 			
 def selezione_post (lista_upvotes, sub_scelte):
 	'''prende la lista con gli upvotes dell'utente, e le sub indicate 
@@ -245,6 +299,8 @@ def scelta_subreddit(cartella_user, upvoted):
 				sub_indicata = input('quale subreddit scegli? bada bene a come scrivi! Lascia bianco per proseguire\n')
 				listasub.append(sub_indicata)
 				print(listasub)
+			listasub.pop()
+			print(listasub)
 				
 			#TODO: chiedi all'utente se vuole creare un file con queste 
 			#specifiche sub che ha scelto, o se ne vuole modificare uno esistente
@@ -256,14 +312,15 @@ def scelta_subreddit(cartella_user, upvoted):
 			return cartella_user, listasub
 		else: continue
 	
-def txt_upvote_passati():
+def txt_upvote_passati(percorso):
 	'''crea o legge, poi restituisce il file txt che conterrà/contiene
 	l'url dei vecchi post upvotati'''
 	#TODO: cerca la lista dei doppioni in PATH_SLUT. Se c'è l'apre e si prepara ad
 	#controllare se i post dell'utente già ci sono e nel caso li salto (e toglie l'upvote)
 	#aggiunge i post mancanti
-	os.chdir(PATH_SLUT)
-	if not os.path.isfile(os.path.join(PATH_SLUT, 'lista_upvote.txt')):
+	os.chdir(percorso)
+	print('percorso per il txt', percorso)
+	if not os.path.isfile(os.path.join(percorso, 'lista_upvote.txt')):
 		modo = 'w+'
 	else:
 		modo = 'r+'
@@ -285,10 +342,10 @@ def check_doppione(url, lista_passato, file_passato):
 			vid = os.path.isfile(os.path.join(PATH_SLUT_VID, nome))
 			gfy = os.path.isfile(os.path.join(PATH_SLUT_VID, nome + '.mp4'))
 			gifv = os.path.isfile(os.path.join(PATH_SLUT_VID, nome[:-4] + 'mp4'))
-			print (immag, singola_immag, vid,  gfy, gifv)
+			commento = os.path.isfile(os.path.join(PATH_SLUT_COM, nome))
 			
 			#controlla se il file esiste
-			if not (immag or vid or gfy or gifv or singola_immag):
+			if not (immag or vid or gfy or gifv or singola_immag or commento):
 				print('Url già presente in lista, ma file assente!')
 				while True:
 					scelta = input('vuoi salvare il file: ' + str(url) +'? S/N\n')
@@ -311,74 +368,73 @@ def check_doppione(url, lista_passato, file_passato):
 	file_passato.write(url + '\n')
 	return False
 	
-def smista_formato(post, sfigatto):
+def smista_formato(sfigatto, **kwargs):
 	'''smista i post tra i vari formati e restituisce liste contenente 
-	l'url finali da avviare al check_doppione'''
+	l'url finali da avviare al check_doppione
+	il kwargs serve a far si che la funzione possa usare sia i post che 
+	gli url a cui i post puntano (quando usi i commenti)'''
 	
 	print('\nsiamo in smista_formato')
-	
-	pre_url = post.url
-	url = str(pre_url)
+	try:
+		#Se hai un post da cui prendere l'url
+		for k in kwargs:
+			pre_url = kwargs[k].url
+			url = str(pre_url)
+	except: #va specificato l'except o si fanno errori sciocchi!!! basta che sia sbagliato un print nel try per finire nell'except aspecifico e perdersi l'errore!
+		#Se hai un url direttamente
+		for k in kwargs:
+			pre_url = kwargs[k]
+			url = str(pre_url)
+		
 	
 	if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
-		print ('abbiamo a che fare con una immagine!\n' + url)
-		#da_salvare(url, PATH_SLUT_IMG)
-		LISTA_IMMAGINI.append(url)
-		DIZ_CLEANER[post] = url
+		print ('abbiamo a che fare con una immagine!\n')
+		formato(LISTA_IMMAGINI, url, kwargs, k)
 		
 	elif url.startswith('http://imgur.com/a/'):
-		#BISOGNA TENERE CONTO NELLE LISTE sia delle immagini che dell'url del post???
-		#COME LO GIOSTRO?
-		print ('abbiamo a che fare con ALBUM IMGUR!\n' + url)
-		album_imgur(url)
-		DIZ_CLEANER[post] = url 
-		#url = album_imgur(url) 
-		#LISTA_ALBUM.append(url)
+		print ('abbiamo a che fare con ALBUM IMGUR!\n')
+		album_imgur(url, kwargs, k)
 		
 	elif url.startswith('http://imgur.com'):
 		print ('abbiamo a che fare con una immagine IMGUR!\n')
 		url = 'https://i.imgur.com//' + os.path.basename(url) + '.jpg'
-		print (str(url))
-		#da_salvare(url, PATH_SLUT_IMG)
-		LISTA_IMMAGINI.append(url)
-		DIZ_CLEANER[post] = url
+		formato(LISTA_IMMAGINI, url, kwargs, k)
 		
 	elif url.startswith('https://imgur.com'):
-		print ('HTTPS IMGUR!\n' + url)
+		print ('HTTPS IMGUR!\n')
 		url = decifra_imgur_https(url)
 		print(url)
-		#da_salvare(url, PATH_SLUT_IMG)
 		if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
-			LISTA_IMMAGINI.append(url)
-			DIZ_CLEANER[post] = url
+			formato(LISTA_IMMAGINI, url, kwargs, k)
 		elif url.endswith('.mp4'):
-			LISTA_VIDEO.append(url)
-			DIZ_CLEANER[post] = url
+			formato(LISTA_VIDEO, url, kwargs, k)
 			
-	elif url.startswith('https://gfycat.com/') or url.startswith('https://giant.gfycat.com/'):
-		print ("siamo su gfycat!", url)
+	elif url.startswith('https://gfycat.com/') or url.startswith('https://giant.gfycat.com/') or url.startswith('https://fat.gfycat.com/'):
+		print ("siamo su gfycat!")
 		sfnome = os.path.basename(url)
 		sfinfo = sfigatto.query_gfy(sfnome)
 		#pprint.pprint (sfinfo)
 		sfurl = sfinfo['gfyItem']['mp4Url']
 		print(sfurl)
-		#da_salvare(sfurl, PATH_SLUT_VID)
-		LISTA_VIDEO.append(sfurl)
-		DIZ_CLEANER[post] = sfurl
+		formato(LISTA_VIDEO, sfurl, kwargs, k)
 		
 	elif url.endswith('.gifv'):
-		print ("siamo su imgur con una GIFV!", url)
-		#down_gifv(url)
-		LISTA_GIFV.append(url)
-		DIZ_CLEANER[post] = url
+		print ("siamo su imgur con una GIFV!")
+		formato(LISTA_GIFV, url, kwargs, k)
 		
 	else:
-		print ('***********ODDIO!!! dove siamo?!?********', url)
-		IRRISOLTI.append(post)		
+		print ('***********ODDIO!!! dove siamo?!?********\n', url)
+		IRRISOLTI.append(kwargs[k])		
 
 	return LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV, IRRISOLTI
 
-def album_imgur(url):
+def formato(lista, url, dizkw, kwk):
+	lista.append(url)
+	DIZ_CLEANER[dizkw[kwk]] = url 
+	
+	
+
+def album_imgur(url, dizkw, kwk):
 	res = requests.get(url)
 	res.raise_for_status()
 	soup = bs4.BeautifulSoup(res.text, "html.parser")
@@ -387,11 +443,9 @@ def album_imgur(url):
 		foto = 'http:' + album[num]['src']
 		if foto.endswith('.jpg') or foto.endswith('.png') or foto.endswith('.gif'):
 			print('foto dell album', foto)
-			LISTA_IMMAGINI.append(foto)
-			#da_salvare(foto, PATH_SLUT_IMG)
+			formato(LISTA_IMMAGINI, foto, dizkw, kwk)
 		if foto.endswith('.gifv'):
-			LISTA_GIFV.append(foto)
-			#down_gifv(url)
+			formato(LISTA_GIFV, foto, dizkw, kwk)
 					
 def decifra_imgur_https (url):
 	res = requests.get(url)
@@ -405,8 +459,7 @@ def decifra_imgur_https (url):
 		ind = 'https:' + (elem[0]['src'])
 	return ind
 	
-def down_gifv (url):
-	#UNICO CHE NON RICEVE UNA LISTA MA UN URL, UNIFORMARE???
+def down_gifv (url, cartella_file=PATH_SLUT_VID):
 	#Questo vale solo per le gifv del sito IMGUR.COM
 	print('FIGVVVAFA?')
 	res = requests.get(url)
@@ -414,21 +467,9 @@ def down_gifv (url):
 	soup = bs4.BeautifulSoup(res.text, "html.parser")
 	elem = soup.select("body div source")
 	print(elem)
-	#print(url)
-	#print(len(elem))
-	#print (elem)
 	ind = 'http:' + (elem[0]['src'])
 	#print(elem[0]['src'])
-	da_salvare(ind, PATH_SLUT_VID)
-	#if os.path.isfile(os.path.join(PATH_SLUT_VID, os.path.basename(ind))):
-	#	print('File già esistente!: ', ind)
-	#	return
-	#res = requests.get(ind)
-	#res.raise_for_status()	
-	#vidFile = open(os.path.join(PATH_SLUT_VID, os.path.basename(ind)) , 'wb')
-	#salva (vidFile, res)
-	
-	#return elem[0]['src']
+	da_salvare(ind, cartella_file)
 	
 def da_salvare (url, cartella_file):
 	if os.path.isfile(os.path.join(cartella_file, os.path.basename(url))):
