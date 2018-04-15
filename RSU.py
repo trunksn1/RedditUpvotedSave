@@ -40,48 +40,35 @@ def main():
         printa_up(num, el)
         num += 1
 
-    pausa = input("PAUSA")
-
-    # creo un set delle sub in cui sono stati postati i post upvotati
-    # e la stampo
+    # creo un set delle subreddit in cui sono stati postati i post upvotati
     sub_upvotes = prepara_sub(lista_upvotes)
-    pprint.pprint(sub_upvotes)
 
-    percorso, sub_scelte = scelta_subreddit(cartella_user, lista_upvotes)
-    print()
-    print(sub_scelte)
+    # O è il percorso verso un file.txt con la lista da esso creato con .readlines()
+    # Oppure sono il percorso della cartella_user con la listadisub indicate appena prima ma non salvate in txt
+    percorso, sub_scelte = scelta_subreddit(cartella_user, lista_upvotes, sub_upvotes)
 
-    pausa = input("PAUSA")
+    print("Lista finale delle sub selezionate:\n")
+    pprint.pprint(sub_scelte)
+    #pausa = input("PAUSA")
 
-    if os.path.isfile(percorso):
-
-        # TODO:Chiedi se vuoi aggiungere altre sub al file passato
-        print('file')
-    else:
-        # TODO: Chiedi se vuoi salvare questa lista in un file da poter riutilizzare
-        print('path')
-
-    # Crea/Legge il file con i vecchi post upvotati, preparando così il controllo per i doppioni
+    # Crea/Legge il file dove sono segnati tutti gli url dei vecchi post upvotati; servirà per il controllo dei doppioni
     file_old_up = txt_upvote_passati(PATH_SLUT)
     lista_old_up = file_old_up.readlines()
 
-    # Seleziono i post upvotati provenienti dalle sub indicate prima
+    # Seleziono i post upvotati provenienti dalle sub indicate prima, restituendoli in una lista di post
     lista_new_up = selezione_post(lista_upvotes, sub_scelte)
-    print('printo i submission selezionati!\n')
+    print('\nprinto i submission selezionati!\n')
     num = 1
     for post in lista_new_up:
         printa_up(num, post)
         num += 1
+    #pausa = input("PAUSA")
 
-    pausa = input("PAUSA")
-
-    # Da ogni post nella lista creata viene estrapolato l'url a cui si riferisce e questo inserito in una lista pronto per essere prima checkato per doppione, e poi salvato
+    # Da ogni post nella lista viene estrapolato l'url, e creata una lista di url pronti per essere checkati per doppioni, e poi salvati
     for elemento in lista_new_up:
         smista_formato(sfigatto, elemento=elemento)
         # metto qua il parse dei commenti per evitare dopo un altro ciclo identico
         parse_commenti2(elemento)
-
-    # pausa = input("premi per continuare")
 
     # A questo punto per ogni lista nel megalistone, guarda se gli elementi sono dei doppioni
     for lista_formato in LISTE:
@@ -113,12 +100,10 @@ def main():
     print(len(DIZ_CLEANER), "DIZ_CLEANER")
     pprint.pprint(DIZ_CLEANER)
 
-    pausa = input("aspetto un tuo segnale per continuare...\n")
-
     # TODO ADESSO PULIRE GLI UPVOTE E AZZERARE LE LISTE PER I COMMENTI!!!
     DA_RIMUOVERE = LISTA_GIFV[:] + LISTA_VIDEO[:] + LISTA_IMMAGINI[:] + DOPPIONI[:]
     print(len(DA_RIMUOVERE))
-    pausa = input("aspetto un tuo segnale per continuare...\n")
+    #pausa = input("aspetto un tuo segnale per continuare...\n")
     del LISTA_IMMAGINI[:]
     del LISTA_VIDEO[:]
     del LISTA_GIFV[:]
@@ -133,7 +118,7 @@ def main():
             COMM_IRR.append(commento)
             continue
 
-    pausa = input("PAUSA")
+    #pausa = input("PAUSA")
 
     file_old_comm = txt_upvote_passati(PATH_SLUT_COM)
     lista_old_comm = file_old_comm.readlines()
@@ -164,8 +149,6 @@ def main():
     print('commenti irrecuperabili\n', COMM_IRR)
     pprint.pprint(COMM_IRR)
 
-    pausa = input("PAUSA")
-
     for lista in (DA_RIMUOVERE):
         for post in DIZ_CLEANER:
             if DIZ_CLEANER[post] in lista:
@@ -176,13 +159,12 @@ def scelta(stringa, opz1y="s" , opz2n="n"):
     while True:
         scelta = input(stringa)
         if scelta.lower() == opz1y:
-            return 1
+            return True
         elif scelta.lower() == opz2n:
-            return 2
+            return False
         else:
             print("Devi scrivere solo '%s' oppure '%s'\nRIPROVA\n" %(opz1y, opz2n))
             continue
-
 
 def parse_commenti2(post):
     pattern = re.compile(regex)
@@ -205,37 +187,18 @@ def parse_commenti2(post):
             COMMENTI.append(elem)
     print(len(COMMENTI))
 
-
 def remove_upvote(el):
     try:
         print('sto per togliere l\'upvote a: \n', el.subreddit, el.title.encode(errors='replace'), el.url, el.shortlink)
     except AttributeError:
         print("volevo dirti che sto rimuovendo\n" + str(el))
 
-    if scelta ("posso togliere gli upvote dai post oramai salvati? [s/n]") == 1:
+    if scelta ("posso togliere gli upvote dai post oramai salvati? [s/n]"):
         print("mò levo tutto! ADDIO ", el)
         try:
             el.clear_vote()
         except:
             print("non ho tolto niente perchè non ce sò riuscito, probabilmente non mi hai passato un post ma un url!")
-
-#    while True:
-#        opzione = input("posso togliere gli upvote dai post oramai salvati? [s/n]")
-#        if opzione.lower() not in ['s', 'n']:
-#            print('risposta errata')
-#            continue
-#        elif opzione.lower() == 's':
-#            print("mò levo tutto! ADDIO ", el)
-#            try:
-#                el.clear_vote()
-#                break
-#            except:
-#                print(
-#                    "non ho tolto niente perchè non ce sò riuscito, probabilmente non mi hai passato un post ma un url!")
-#                break
-#        elif opzione.lower() == 'n':
-#            break
-
 
 def selezione_post(lista_upvotes, sub_scelte):
     '''prende la lista con gli upvotes dell'utente, e le sub indicate
@@ -244,12 +207,10 @@ def selezione_post(lista_upvotes, sub_scelte):
 
     post_selezionati = list()
     for up in lista_upvotes:
-        # url = up.url
         sub = up.subreddit
         if sub in sub_scelte:
             post_selezionati.append(up)
     return post_selezionati
-
 
 def crea_lista_up(redditore):
     '''Restituisce una lista contenente	i post upvotati dal redditor.
@@ -264,7 +225,6 @@ def crea_lista_up(redditore):
         lista_up.append(upvote)
     return lista_up
 
-
 def prepara_sub(lista_upvotes):
     '''Prende la lista degli upvotes dell'utente e restituisce un set
     che contiene le sub di origine dei post upvotati'''
@@ -273,7 +233,6 @@ def prepara_sub(lista_upvotes):
     for el in lista_upvotes:
         sub_origine.add((str(el.subreddit)))
     return sub_origine
-
 
 def printa_up(numero, post):
     sub = str(post.subreddit)
@@ -286,73 +245,76 @@ def printa_up(numero, post):
         spazi = '\t\t\t'
     print(str(numero) + ') /r/', post.subreddit, spazi, post.title.encode(errors='replace'))
 
-
-def scelta_subreddit(cartella_user, upvoted):
-    """Chiede le subreddit in cui si trovano i post_upvotati che vuoi salvare
+def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
+    """I post provenienti da quelle subreddit vuoi salvare?
     passando la path della cartella user e la lista di upvotes
     restituisce una tupla contenente:
-    1)il percorso della cartella e la 	lista delle sub scelte, oppure
+    1)il percorso della cartella e la lista delle sub scelte, oppure
     2)il percorso per il file txt ed la	variabile file.read() se già esistente"""
 
     while True:
-        msg = '\n\n***Hai due possibilità per salvare i file:'
-        msg += '\n[1] Importare un file di subreddit dalla cartella:'
+        msg = '\n\n***\tHai due possibilità per salvare i file:'
+        msg += '\n\t[1] Leggere le subreddit scritte in un file situato nella cartella:'
         msg += '\n%s' % cartella_user
-        msg += '\n [2] scegliere manualmente i subreddit \t***'
-
-        #scelta() = int(input())
-        opz = scelta(msg, opz1y='1', opz2n='2')
+        msg += '\n\t[2] Scrivere manualmente i subreddit \t***\n'
+        filetxt = scelta(msg, opz1y='1', opz2n='2')
 
         # TODO L'idea è di mettere questi dati in un file config
-        if opz == 1:
-            print(os.listdir(cartella_user))
-            sceltatxt = input('quale file? specifica anche l\'estensione\t')
-            if os.path.isfile(sceltatxt):
-                # Lo apro in append mode per poter vedere se posso modificarlo
-                with open(sceltatxt, 'r+') as filesub:
-                    percorso_filesub = os.path.join(cartella_user, sceltatxt)
-                    lista_filesub = filesub.readlines()
-                    print(lista_filesub)
+        if filetxt:
+            while True:
+                print('Quale file tra questi? Specifica anche l\'estensione\t')
+                print(os.listdir(cartella_user))
+                sceltatxt = input()
+                if os.path.isfile(sceltatxt):
+                    # Lo apro in append mode per poter vedere se posso modificarlo
+                    with open(sceltatxt, 'r+') as filesub:
+                        copiafilesub = filesub.readlines()
+                        percorso_filesub = os.path.join(cartella_user, sceltatxt)
+                        print("\nContenuto del file %s\n" % sceltatxt)
+                        filesub.seek(0)
+                        print(filesub.read())
 
-                    while True:
-                        opzione = scelta("vuoi aggiungere altre sub a questo file?\n [s/n]")
-                        if opzione == 1:
-                            del lista_filesub[:]
-                            agg = input("Quale sub aggiungere? ATTENTO\n")
-                            agg = agg + '\n'
-                            print(agg)
-                            filesub.write(agg)
-                        elif opzione == 2:
-                            break
+                        #confronta le sub dei post upvotati con le sub contenute nel file selezionato
+                        # per mostrare quelle che sono rimaste fuori dal file scelto così da potercele aggiungere
+                        subdelfile = list()
+                        for elementoz in copiafilesub:
+                            elementoz = elementoz[:-1].lower()
+                            subdelfile.append(elementoz)
 
-                    #while True:
-                    #    opzione = input("vuoi aggiungere altre sub a questo file?\n [s/n]")
-                    #    if opzione.lower() == 's':
-                    #        del lista_filesub[:]
-                    #        agg = input("Quale sub aggiungere? ATTENTO\n")
-                    #        agg = agg + '\n'
-                    #        print(agg)
-                    #        filesub.write(agg)
-                    #    elif opzione.lower() == 'n':
-                    #        break
-                    #    else:
-                    #        print("scrivi solo: S o N")
-                    #        continue
+                        listasubescluse = list()
+                        for sub in sub_upvoted:
+                            if sub.lower() not in subdelfile:
+                                listasubescluse.append(sub)
+                        print('Scegliendo questo file, gli upvotes provenienti dalle seguenti subreddit NON verrano salvati')
+                        print()
+                        pprint.pprint(listasubescluse)
+                        print()
+                        input('ENTER per continuare')
 
-                    # una volta letto con readlines prima il file è arrivato alla fine se provi a copiarlo nella lista con un
-                    # nuovo readlines, copierà niente, perchè il file è finito, va quindi riavvolto con seek
-                    filesub.seek(0)
-                    lista_filesub = filesub.readlines()
+                        while True:
+                            opzione = scelta("vuoi aggiungere altre sub a questo file?\n[s/n]\t")
+                            if opzione:
+                                agg = input("Quale sub aggiungere? ATTENTO\n")
+                                agg = agg + '\n'
+                                print(agg)
+                                filesub.write(agg)
+                            elif not opzione:
+                                break
 
-                    for i in range(len(lista_filesub)):
-                        lista_filesub[i] = lista_filesub[i].rstrip('\n')
+                        # una volta letto con readlines prima il file è arrivato alla fine se provi a copiarlo nella lista
+                        # con un nuovo readlines, copierà niente, perchè il file è finito, va quindi riavvolto con seek
+                        filesub.seek(0)
+                        lista_filesub = filesub.readlines()
 
-                    return percorso_filesub, lista_filesub
-            else:
-                print('il file %s non esiste' % sceltatxt)
-                continue
+                        for i in range(len(lista_filesub)):
+                            lista_filesub[i] = lista_filesub[i].rstrip('\n')
 
-        elif opz == 2:
+                        return percorso_filesub, lista_filesub
+                else:
+                    print('il file %s non esiste' % sceltatxt)
+                    continue
+
+        elif not filetxt:
             listasub = list()
             sub_indicata = 1
             while sub_indicata:
@@ -362,53 +324,41 @@ def scelta_subreddit(cartella_user, upvoted):
             listasub.pop()
             print(listasub)
 
-            opzione = scelta("vuoi salvare queste scelte in un file per una futura ricerca?\n [s/n]")
-            if opzione == 1:
-                filenome = input("che nome dai al file?\n")
-                print(filenome)
-                if not filenome.endswith('.txt'):
-                    filenome = filenome + '.txt'
-                    print(filenome)
-                if os.path.isfile(filenome):
-                    print("Il file esiste già! Scegli un altro nome\n")
-                    continue
+            if scelta("vuoi salvare queste scelte in un file per una futura ricerca?\n [s/n]"):
+                # Scelta del nome del file
+                while True:
+                    filenome = input("che nome dai al file?\n")
 
-                with open(filenome, 'w') as filenuovo:
-                    for sub in listasub:
-                        filenuovo.write(sub + '\n')
+                    if not filenome.endswith('.txt'):
+                        filenome = filenome + '.txt'
+                        print(filenome)
 
+                    if os.path.isfile(filenome):
+                        print("Il file esiste già! Scegli un altro nome\n")
+                        continue
+                    else:
+                        break
+                # Fase 1 Creazione del file: modo 'w'
+                filenuovo = open(filenome, 'w')
+                percorso_filenuovo = os.path.join(cartella_user, filenome)
+                for sub in listasub:
+                    filenuovo.write(sub + '\n')
+                filenuovo.close()
+                # Fase 2 Lettura del file creato per creare la lista da restituire: modo 'r+'
+                with open (filenome, 'r+') as filenuovo:
+                    filenuovo.seek(0)
+                    lista_filenuovo = filenuovo.readlines()
 
-            elif opzione == 2:
-                print("va bene niente nuovi file")
+                    for i in range(len(lista_filenuovo)):
+                        lista_filenuovo[i] = lista_filenuovo[i].rstrip('\n')
 
-
-
-
-#            while opzione:
-#                if opzione.lower() == 's':
-#                    filenome = input("che nome dai al file?\n")
-#                    print(filenome)
-#                    if not filenome.endswith('.txt'):
-#                        filenome = filenome + '.txt'
-#                        print(filenome)
-#                    if os.path.isfile(filenome):
-#                        print("Il file esiste già! Scegli un altro nome\n")
-#                        continue
-#
-#                    with open(filenome, 'w') as filenuovo:
-#                        for sub in listasub:
-#                            filenuovo.write(sub + '\n')
-#                        break
-#
-#                elif opzione.lower() == 'n':
-#                    print("va bene niente nuovi file")
-#                    break
-#                else:
-#                    print("S o N")
-
-            # TODO: chiedi all'utente se vuole creare un file con queste
-            # specifiche sub che ha scelto, o se ne vuole modificare uno esistente
+                    print(lista_filenuovo)
+                    # Restituito il percorso del file creato e la lista creata sulla base del file
+                    return percorso_filenuovo, lista_filenuovo
+            # Restituito il percorso della cartella dell'user con l'elenco di sub scritte pocanzi ma non salvate in un file.
             return cartella_user, listasub
+
+        # TODO opzione speciale per salvare tutti i file upvotati direttamente!
         elif opz == 3:
             listasub = list()
             for el in upvoted:
@@ -416,7 +366,6 @@ def scelta_subreddit(cartella_user, upvoted):
             return cartella_user, listasub
         else:
             continue
-
 
 def txt_upvote_passati(percorso):
     '''crea o legge, poi restituisce il file txt che conterrà/contiene
@@ -430,12 +379,9 @@ def txt_upvote_passati(percorso):
         modo = 'w+'
     else:
         modo = 'r+'
-    # with open ('listone.txt', modo) as lista:
-    #	return lista
-    print('modo del listone: ', modo)
+    #print('modo del listone: ', modo)
     lista = open('lista_upvote.txt', modo)
     return lista
-
 
 def check_doppione(url, lista_passato, file_passato):
     print('\ncheck doppione: ', url)
@@ -462,21 +408,12 @@ def check_doppione(url, lista_passato, file_passato):
 
                 mess = 'vuoi salvare il file: ' + str(url) + '? S/N\n'
                 opz = scelta(mess)
-                if opz == 1:
+                if opz:
                     return False
-                elif opz == 2:
+                elif not opz:
                     DOPPIONI.append(url)
                     return True
 
-                #while True:
-                #    scelta = input('vuoi salvare il file: ' + str(url) + '? S/N\n')
-                #    if scelta.lower() in ['n', 's']:
-                #        break
-                #if scelta.lower() == 's':
-                #    return False
-                #elif scelta.lower() == 'n':
-                #    DOPPIONI.append(url)
-                #    return True
             # Poichè la cartella dei commenti è lì giusto per lo smistamento se l'url del file è presente nel txt, lo dò già per doppione.
             else:
                 print(url + ' già presente, con relativo file. DOPPIONISSIMO!')
@@ -491,16 +428,15 @@ def check_doppione(url, lista_passato, file_passato):
     file_passato.write(url + '\n')
     return False
 
-
 def smista_formato(sfigatto, **kwargs):
-    '''smista i post tra i vari formati e restituisce liste contenente
-    l'url finali da avviare al check_doppione
-    il kwargs serve a far si che la funzione possa usare sia i post che
-    gli url a cui i post puntano (quando usi i commenti)'''
+    '''smista i post tra i vari formati e restituisce liste contenenti gli url finali da avviare al check_doppione
+    il kwargs serve a far si che la funzione possa usare sia i post che gli url dei post (quando studi i commenti)'''
+    #SI PUO REFACTORIARE! E Forse semplificare togliendo il **kwargs.
+
 
     # print('\nsiamo in smista_formato')
     try:
-        # Se hai un post da cui prendere l'url
+        # Se hai un post da cui estrarre l'url
         for k in kwargs:
             pre_url = kwargs[k].url
             url = str(pre_url)
@@ -553,8 +489,6 @@ def smista_formato(sfigatto, **kwargs):
                 formato(LISTA_GIFV, url, kwargs, k)
                 #pausa = input("IMGUR MGIFV")
 
-
-
     elif url.startswith('https://imgur.com'):
         print('HTTPS IMGUR!\n')
         url = decifra_imgur_https(url)
@@ -589,12 +523,22 @@ def formato(lista, url, dizkw, kwk):
     lista.append(url)
     DIZ_CLEANER[dizkw[kwk]] = url
 
-
 def album_imgur(url, dizkw, kwk):
+    # TODO bisogna cercare se la pagina contiene il bottone per caricare più foto,
+    # se si: caricare il file in modalità grid aggiungendo alla fine dell'url "/a/imageid/all" e scaricare tutte le foto
+    #che non funziona, forse con ?grid
+    #se no scarica l'album come è
+    url += "?grid"
+    print (url)
+    #input("pausa")
     res = requests.get(url)
     res.raise_for_status()
     soup = bs4.BeautifulSoup(res.text, "html.parser")
-    album = soup.select("a img[src]")  # ("[class==post-image-container]")
+    #album = soup.select("a img[src]")  # ("[class==post-image-container]")
+    album = soup.select(".post-image")
+    print(album)
+    print(str(len(album)) + ' foto trovate nell album url: ' + url)
+    #input("pausa")
     for num in range(len(album)):
         foto = 'http:' + album[num]['src']
         if foto.endswith('.jpg') or foto.endswith('.png') or foto.endswith('.gif'):
@@ -602,7 +546,6 @@ def album_imgur(url, dizkw, kwk):
             formato(LISTA_IMMAGINI, foto, dizkw, kwk)
         if foto.endswith('.gifv'):
             formato(LISTA_GIFV, foto, dizkw, kwk)
-
 
 def decifra_imgur_https(url):
     res = requests.get(url)
@@ -616,31 +559,55 @@ def decifra_imgur_https(url):
         ind = 'https:' + (elem[0]['src'])
     return ind
 
-
 def down_gifv(url, cartella_file=PATH_SLUT_VID):
     # Questo vale solo per le gifv del sito IMGUR.COM
-    res = requests.get(url)
-    res.raise_for_status()
-    soup = bs4.BeautifulSoup(res.text, "html.parser")
-    elem = soup.select("body div source")
-    ind = 'http:' + (elem[0]['src'])
-    # print(elem[0]['src'])
-    da_salvare(ind, cartella_file)
-
+    try:
+        res = requests.get(url)
+        res.raise_for_status()
+        soup = bs4.BeautifulSoup(res.text, "html.parser")
+        elem = soup.select("body div source")
+        ind = 'http:' + (elem[0]['src'])
+        # print(elem[0]['src'])
+        da_salvare(ind, cartella_file)
+    except:
+        print("c'è stato un problema con le gifv di imgur")
 
 def da_salvare(url, cartella_file):
     if os.path.isfile(os.path.join(cartella_file, os.path.basename(url))):
         print('File già esistente!: ', url)
         return
-    try:
-        res = requests.get(url)
-    except:
-        print("ERRORE, non possibile caricare la pagina!")
-        return 404
+
+    res = requests.get(url)
+    stato = res.status_code
+    if stato != 200:
+        print("qualcosa è andato storto.")
+        print(stato)
+        print(url)
+        return 505
     else:
-        res.raise_for_status()
-    salvato = open(os.path.join(cartella_file, os.path.basename(url)), 'wb')
-    salva(salvato, res)
+        try:
+            salvato = open(os.path.join(cartella_file, os.path.basename(url)), 'wb')
+            salva(salvato, res)
+            print("Salvato: ", url)
+        except:
+            # TODO piazzare l'url salvato da qualche parten
+            print("qualcosa è andato storto al salvataggio dell'url: " + str(url))
+            return 505
+
+    # Riscritto
+    #try:
+    #    res = requests.get(url)
+    #    print(res.status_code)
+    #except:
+    #    print("ERRORE, non possibile caricare la pagina!")
+    #    return 404
+    #else:
+    #    print("qualcosa è andato storto.")
+    #    print(url)
+    #    return 505
+    #    #res.raise_for_status()
+    #salvato = open(os.path.join(cartella_file, os.path.basename(url)), 'wb')
+    #salva(salvato, res)
 
 
 def salva(path, res):
@@ -651,35 +618,3 @@ def salva(path, res):
 
 if __name__ == "__main__":
     main()
-# ciao
-
-# x = reddit.subreddit('redditdev')
-# print(x)
-
-# print(x.display_name)  # Output: redditdev
-# print(x.title)         # Output: reddit Development
-# print(x.description)   # Output: A subreddit for discussion of ...
-
-# for i in range(len(lista)):
-#	res = requests.get(lista[i])
-#	res.raise_for_status()
-#	imageFile = open(os.path.join('nsfw_img', os.path.basename(lista[i])) , 'wb')
-#	for pezzo in res.iter_content(100000):
-#		imageFile.write(pezzo)
-#	imageFile.close()
-
-
-#	soup = bs4.BeautifulSoup(res.text , "html.parser")
-#	imag = soup.select('img src')
-# try:
-#	print(imag)
-#	url = 'http:' + imag[0].get('src')
-#	res = raise_for_status()
-# except:
-#	print('cazzi')
-# pprint.pprint(lista_upvote)
-# pprint.pprint(dir(upvote))
-#		print(upvote.title)
-#		print(upvote.subreddit)
-#		print(upvote.thumbnail)
-#		print(str(upvote.thumbnail_height) + '*' + str(upvote.thumbnail_width))

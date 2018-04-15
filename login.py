@@ -35,7 +35,6 @@ def inizializza(username, cartella):
 	Restituisce la cartella dell'utente """
 
 	print('inizializziamo')
-	print(os.path.exists(cartella))
 	if not os.path.exists(cartella):
 		os.makedirs(cartella, exist_ok=True)
 		configFile = shelve.open(os.path.join(cartella, 'config'))
