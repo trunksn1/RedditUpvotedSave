@@ -19,7 +19,14 @@ def reddit_login(): #COMPLETARE non funziona: il secondo login non va mai in por
 			
 			time.sleep(2)
 			os.chdir('..')
-			shutil.rmtree(cartella, ignore_errors = True)			
+			while True:
+				print("vuoi rimuovere la cartella appena creata? \n" + cartella)
+				sel = input("S/N")
+				if sel.upper() == "S":
+					shutil.rmtree(cartella, ignore_errors = True)
+					break
+				elif sel.upper() == "N":
+					break
 			time.sleep(2)
 			continue
 		else:

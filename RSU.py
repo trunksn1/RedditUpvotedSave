@@ -33,15 +33,11 @@ def main():
     sfigatto = GfycatClient()
     redditore, cartella_user = reddit_login()
 
-    # creo la lista degli upvotes e la stampo a schermo
-    lista_upvotes = crea_lista_up(redditore)
-    num = 1
-    for el in lista_upvotes:
-        printa_up(num, el)
-        num += 1
+    # creo la lista degli upvotes e un set delle subreddit in cui sono stati postati i post upvotati
+    lista_upvotes, sub_upvotes = lista_post_set_sub(redditore)
 
-    # creo un set delle subreddit in cui sono stati postati i post upvotati
-    sub_upvotes = prepara_sub(lista_upvotes)
+    # stampa a schermo: num) /r/subreddit: 'Titolo post upvotato'
+    mostra_upvotes(lista_upvotes)
 
     # O è il percorso verso un file.txt con la lista da esso creato con .readlines()
     # Oppure sono il percorso della cartella_user con la listadisub indicate appena prima ma non salvate in txt
@@ -58,10 +54,7 @@ def main():
     # Seleziono i post upvotati provenienti dalle sub indicate prima, restituendoli in una lista di post
     lista_new_up = selezione_post(lista_upvotes, sub_scelte)
     print('\nprinto i submission selezionati!\n')
-    num = 1
-    for post in lista_new_up:
-        printa_up(num, post)
-        num += 1
+    mostra_upvotes(lista_new_up)
     #pausa = input("PAUSA")
 
     # Da ogni post nella lista viene estrapolato l'url, e creata una lista di url pronti per essere checkati per doppioni, e poi salvati
@@ -212,38 +205,35 @@ def selezione_post(lista_upvotes, sub_scelte):
             post_selezionati.append(up)
     return post_selezionati
 
-def crea_lista_up(redditore):
-    '''Restituisce una lista contenente	i post upvotati dal redditor.
-    Per accedere alla subreddit di ogni elemento si fa:
-    lista[el].subreddit'''
-
+def lista_post_set_sub(redditore):
+    """Creo contemporaneamente sia la lista dei post upvotati che il set con i subreddit dei post.
+    Restituisce una tupla con la lista dei post upvotati dal redditor, e un set delle sub di origine dei post upvotati
+    Per accedere alla subreddit di ogni elemento si fa: lista[el].subreddit"""
     lista_up = list()
+    sub_origine = set()
+    print("NUOVA FUNZIONE LISTA_POST_SET_SUB")
     # .upvoted() Return a ListingGenerator for items the user has upvoted.
     upvoted = redditore.upvoted()
-    # crea la lista
+
     for upvote in upvoted:
         lista_up.append(upvote)
-    return lista_up
+        sub_origine.add((str(upvote.subreddit)))
+    return lista_up, sub_origine
 
-def prepara_sub(lista_upvotes):
-    '''Prende la lista degli upvotes dell'utente e restituisce un set
-    che contiene le sub di origine dei post upvotati'''
-    print("siamo in prepara_sub")
-    sub_origine = set()
-    for el in lista_upvotes:
-        sub_origine.add((str(el.subreddit)))
-    return sub_origine
+def mostra_upvotes(lista_up):
+    num = 0
 
-def printa_up(numero, post):
-    sub = str(post.subreddit)
-    lunghezza = len(sub)
-    if lunghezza > 12:
-        spazi = '\t'
-    elif lunghezza > 6:
-        spazi = '\t\t'
-    else:
-        spazi = '\t\t\t'
-    print(str(numero) + ') /r/', post.subreddit, spazi, post.title.encode(errors='replace'))
+    for post in lista_up:
+        sub = str(post.subreddit)
+        # Formula che calcola le tab ottimali per pareggiare la spaziatura tra il nome del sub e il titolo
+        lun = len(sub)
+        spazi = "\t" * (6 - lun // 4)
+        if lun % 4 == 0:
+            spazi += "\t"
+
+        print(str(num) + ')\t/r/' + sub + spazi + str(post.title.encode(errors='replace')))
+        num += 1
+
 
 def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
     """I post provenienti da quelle subreddit vuoi salvare?
@@ -254,52 +244,44 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
 
     while True:
         msg = '\n\n***\tHai due possibilità per salvare i file:'
-        msg += '\n\t[1] Leggere le subreddit scritte in un file situato nella cartella:'
-        msg += '\n%s' % cartella_user
-        msg += '\n\t[2] Scrivere manualmente i subreddit \t***\n'
-        filetxt = scelta(msg, opz1y='1', opz2n='2')
+        msg += '\n***\t[1] Leggere le subreddit scritte in un file situato nella cartella:'
+        msg += '\n***\t%s' % cartella_user
+        msg += '\n***\t[2] Scrivere manualmente i subreddit \t***\n'
+        filetxt = scelta(msg, opz1y='1', opz2n='2')     # filetext sarà o True o False
 
         # TODO L'idea è di mettere questi dati in un file config
         if filetxt:
             while True:
-                print('Quale file tra questi? Specifica anche l\'estensione\t')
+                print('Quale file tra questi?')
                 print(os.listdir(cartella_user))
                 sceltatxt = input()
+                # Se manca l'estensione .txt l'aggiungo
+                if not sceltatxt.endswith(".txt"):
+                    sceltatxt += ".txt"
+                    print(sceltatxt)
+
                 if os.path.isfile(sceltatxt):
                     # Lo apro in append mode per poter vedere se posso modificarlo
                     with open(sceltatxt, 'r+') as filesub:
-                        copiafilesub = filesub.readlines()
+                        copiafilesub = filesub.read().lower().splitlines() # splitlines() separa le stringhe lette da read(), e fa una lista
+
                         percorso_filesub = os.path.join(cartella_user, sceltatxt)
                         print("\nContenuto del file %s\n" % sceltatxt)
                         filesub.seek(0)
                         print(filesub.read())
 
+                        #TODO Penso che si possa fare diversamente il confronto tra gli elementi di due liste, senza necessità di crearne una terza
                         #confronta le sub dei post upvotati con le sub contenute nel file selezionato
                         # per mostrare quelle che sono rimaste fuori dal file scelto così da potercele aggiungere
-                        subdelfile = list()
-                        for elementoz in copiafilesub:
-                            elementoz = elementoz[:-1].lower()
-                            subdelfile.append(elementoz)
-
                         listasubescluse = list()
                         for sub in sub_upvoted:
-                            if sub.lower() not in subdelfile:
+                            if sub.lower() not in copiafilesub:
                                 listasubescluse.append(sub)
-                        print('Scegliendo questo file, gli upvotes provenienti dalle seguenti subreddit NON verrano salvati')
-                        print()
+                        print('Scegliendo %s, gli upvotes dalle seguenti subreddit NON verrano salvati\n' % sceltatxt)
                         pprint.pprint(listasubescluse)
-                        print()
-                        input('ENTER per continuare')
-
-                        while True:
-                            opzione = scelta("vuoi aggiungere altre sub a questo file?\n[s/n]\t")
-                            if opzione:
-                                agg = input("Quale sub aggiungere? ATTENTO\n")
-                                agg = agg + '\n'
-                                print(agg)
-                                filesub.write(agg)
-                            elif not opzione:
-                                break
+                        input('\nENTER per continuare')
+                        # Si da la possibilità di aggiungere altre subreddit al file scelto in modo permamenente
+                        aggiungi_sub(filesub)
 
                         # una volta letto con readlines prima il file è arrivato alla fine se provi a copiarlo nella lista
                         # con un nuovo readlines, copierà niente, perchè il file è finito, va quindi riavvolto con seek
@@ -311,18 +293,12 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
 
                         return percorso_filesub, lista_filesub
                 else:
-                    print('il file %s non esiste' % sceltatxt)
+                    print('il file %s non esiste!!!' % sceltatxt)
                     continue
 
-        elif not filetxt:
+        elif not filetxt:   # se ho indicato di voler scegliere manualmente i subreddit
             listasub = list()
-            sub_indicata = 1
-            while sub_indicata:
-                sub_indicata = input('quale subreddit scegli? bada bene a come scrivi! Lascia bianco per proseguire\n')
-                listasub.append(sub_indicata)
-                print(listasub)
-            listasub.pop()
-            print(listasub)
+            aggiungi_sub(listasub)
 
             if scelta("vuoi salvare queste scelte in un file per una futura ricerca?\n [s/n]"):
                 # Scelta del nome del file
@@ -366,6 +342,27 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
             return cartella_user, listasub
         else:
             continue
+
+def aggiungi_sub(data):
+    """Aggiunge all'argomento passatole (file o lista) le subreddit scelte dall'utente"""
+    messaggio = "quale subreddit vuoi aggiungere? Scrive bene il nome! Lascia bianco per proseguire\n"
+    print(type(data))
+    sub_indicata = 1
+    while sub_indicata:
+        print(messaggio)
+        sub_indicata = input()
+
+        if not sub_indicata:
+            break
+        if (type(data)) == list:
+            data.append(sub_indicata)
+            print(sub_indicata)
+        else:
+            sub_indicata = sub_indicata + '\n'
+            data.write(sub_indicata)
+            print(sub_indicata)
+    print(data)
+
 
 def txt_upvote_passati(percorso):
     '''crea o legge, poi restituisce il file txt che conterrà/contiene
