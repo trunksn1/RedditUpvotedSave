@@ -2,14 +2,19 @@
 # -*- coding: utf-8 -*-
 import os, pprint, re, requests, shelve, shutil, sys, time
 import bs4, praw, send2trash
+import config as cg
 from gfycat.client import GfycatClient
+
+PATH_SLUT_IMG = 'Y:\\Giochi\\Mega\\nsfw_img'
+PATH_SLUT_VID = 'Y:\\Giochi\\Mega\\nsfw_vid'
+PATH_SLUT_COM = 'Y:\\Giochi\\Mega\\nsfw_com\\'
 
 def reddit_login(): #COMPLETARE non funziona: il secondo login non va mai in porto!
 	while True:	
 		username = input('what\'s your reddit username?\n')
 		cartella = os.path.join(os.sys.path[0], username)
 		inizializza(username, cartella)
-		
+
 		try:
 			reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
 			redditore = reddit.user.me()    
@@ -49,9 +54,16 @@ def inizializza(username, cartella):
 		#TODO: va messo un check casomai l'utente sbaglia la password!
 		configFile['password'] = input ('what\'s /u/%s password?\n' %username)
 		os.chdir('y:')
-		os.makedirs(PATH_SLUT_IMG, exist_ok=True)
-		os.makedirs(PATH_SLUT_VID, exist_ok=True)
-		os.makedirs(PATH_SLUT_COM, exist_ok=True)
+		if not os.path.exists(PATH_SLUT_COM):
+			os.makedirs(PATH_SLUT_COM, exist_ok=True)
+		elif not os.path.exists(PATH_SLUT_VID):
+			os.makedirs(PATH_SLUT_VID, exist_ok=True)
+		elif not s.path.exists(PATH_SLUT_IMG):
+			os.makedirs(PATH_SLUT_IMG, exist_ok=True)
+		else:
+			print("Esistono già le path")
+
+
 		
 	#Se esiste, leggila
 	else:
@@ -67,5 +79,5 @@ def crea_prawini(configFile):
 		fileini.write('username=' + configFile['username'] + '\n')
 		fileini.write('password=' + configFile['password'] + '\n')
 		#TODO: come fare a nascondere queste info sensibili?
-		fileini.write('client_id=IIjAZV_ce3rkgA\n')
-		fileini.write('client_secret=qXdKaWzr9CxBEsFGto0IEgHtKEg')
+		fileini.write('client_id=' + cg.prawini_client_id + '\n')
+		fileini.write('client_secret=' + cg.prawini_client_secret)

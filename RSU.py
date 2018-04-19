@@ -217,7 +217,7 @@ def lista_post_set_sub(redditore):
 
     for upvote in upvoted:
         lista_up.append(upvote)
-        sub_origine.add((str(upvote.subreddit)))
+        sub_origine.add((str(upvote.subreddit).lower()))
     return lista_up, sub_origine
 
 def mostra_upvotes(lista_up):
@@ -267,31 +267,20 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
 
                         percorso_filesub = os.path.join(cartella_user, sceltatxt)
                         print("\nContenuto del file %s\n" % sceltatxt)
-                        filesub.seek(0)
-                        print(filesub.read())
+                        print(copiafilesub)
 
                         #TODO Penso che si possa fare diversamente il confronto tra gli elementi di due liste, senza necessità di crearne una terza
                         #confronta le sub dei post upvotati con le sub contenute nel file selezionato
                         # per mostrare quelle che sono rimaste fuori dal file scelto così da potercele aggiungere
-                        listasubescluse = list()
-                        for sub in sub_upvoted:
-                            if sub.lower() not in copiafilesub:
-                                listasubescluse.append(sub)
+
+                        listasubescluse = list(set(sub_upvoted).difference(copiafilesub))
                         print('Scegliendo %s, gli upvotes dalle seguenti subreddit NON verrano salvati\n' % sceltatxt)
                         pprint.pprint(listasubescluse)
                         input('\nENTER per continuare')
                         # Si da la possibilità di aggiungere altre subreddit al file scelto in modo permamenente
                         aggiungi_sub(filesub)
 
-                        # una volta letto con readlines prima il file è arrivato alla fine se provi a copiarlo nella lista
-                        # con un nuovo readlines, copierà niente, perchè il file è finito, va quindi riavvolto con seek
-                        filesub.seek(0)
-                        lista_filesub = filesub.readlines()
-
-                        for i in range(len(lista_filesub)):
-                            lista_filesub[i] = lista_filesub[i].rstrip('\n')
-
-                        return percorso_filesub, lista_filesub
+                        return percorso_filesub, copiafilesub
                 else:
                     print('il file %s non esiste!!!' % sceltatxt)
                     continue
@@ -320,17 +309,8 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
                 for sub in listasub:
                     filenuovo.write(sub + '\n')
                 filenuovo.close()
-                # Fase 2 Lettura del file creato per creare la lista da restituire: modo 'r+'
-                with open (filenome, 'r+') as filenuovo:
-                    filenuovo.seek(0)
-                    lista_filenuovo = filenuovo.readlines()
-
-                    for i in range(len(lista_filenuovo)):
-                        lista_filenuovo[i] = lista_filenuovo[i].rstrip('\n')
-
-                    print(lista_filenuovo)
-                    # Restituito il percorso del file creato e la lista creata sulla base del file
-                    return percorso_filenuovo, lista_filenuovo
+                # Restituito il percorso del file creato e la lista creata sulla base del file
+                return percorso_filenuovo, listasub #lista_filenuovo
             # Restituito il percorso della cartella dell'user con l'elenco di sub scritte pocanzi ma non salvate in un file.
             return cartella_user, listasub
 
@@ -346,7 +326,6 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
 def aggiungi_sub(data):
     """Aggiunge all'argomento passatole (file o lista) le subreddit scelte dall'utente"""
     messaggio = "quale subreddit vuoi aggiungere? Scrive bene il nome! Lascia bianco per proseguire\n"
-    print(type(data))
     sub_indicata = 1
     while sub_indicata:
         print(messaggio)

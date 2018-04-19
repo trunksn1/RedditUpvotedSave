@@ -4,6 +4,7 @@
 import os, requests
 from gfycat.client import GfycatClient
 from imgurpython import ImgurClient
+import config as cg
 
 def gfycazz():
     print(os.getcwd())
@@ -23,8 +24,8 @@ def gfycazz():
 
 def imagur():
     #TODO: Come nascondere queste che sono info sensibili?
-    client_id = '4c1fda5cda15b81'
-    client_secret = 'a4733cf4766bc9adf014563439400a40bc880c5f'
+    client_id = cg.imgur_client_id
+    client_secret = cg.imgur_client_secret
 
     client = ImgurClient(client_id, client_secret)
 
