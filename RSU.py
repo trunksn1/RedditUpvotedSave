@@ -5,16 +5,15 @@ import os, pprint, re, requests, shelve, shutil, sys, time
 import bs4, praw, send2trash
 
 from gfycat.client import GfycatClient
-from login import reddit_login, inizializza, crea_prawini
+from imgurpython import ImgurClient
+from login import reddit_login
+from config import PATH_SLUT, PATH_SLUT_IMG, PATH_SLUT_VID, PATH_SLUT_COM, imgur_client_id, imgur_client_secret
+import sqlite3 as sql3
+import siti
 
 # regex = r'http.*imgur.*/[0-9a-zA-Z]*(jpeg|jpg|png|gif)? | http.*gfycat.*(jpeg|jpg|png|gif|gfv|gifv|gfy)?'
 # regex = r'http.*imgur[0-9a-zA-Z/\.]*|http.*gfycat[0-9a-zA-Z/\.]*'
 regex = r'http[^\s()]*'  # |www).*'
-
-PATH_SLUT = 'Y:\\Giochi\\Mega'
-PATH_SLUT_IMG = 'Y:\\Giochi\\Mega\\nsfw_img'
-PATH_SLUT_VID = 'Y:\\Giochi\\Mega\\nsfw_vid'
-PATH_SLUT_COM = 'Y:\\Giochi\\Mega\\nsfw_com\\'
 
 LISTA_IMMAGINI = []
 LISTA_VIDEO = []
@@ -24,44 +23,113 @@ DOPPIONI = []
 IRRISOLTI = []
 DIZ_CLEANER = {}
 LISTE = [LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV, ]
-COMMENTI = []
+COMMENTI = set()
+POST = set()
 COMM_IRR = []
 
 
 def main():
     # Fase preparatoria dei login e delle configurazioni
     sfigatto = GfycatClient()
-    redditore, cartella_user = reddit_login()
+    redditore, cartella_user, db = reddit_login()
+    imgur = ImgurClient(imgur_client_id, imgur_client_secret)
+    cursore = db.cursor()
 
     # creo la lista degli upvotes e un set delle subreddit in cui sono stati postati i post upvotati
-    lista_upvotes, sub_upvotes = lista_post_set_sub(redditore)
+    lista_post_upvoted, set_sub = lista_post_set_sub(redditore)
 
     # stampa a schermo: num) /r/subreddit: 'Titolo post upvotato'
-    mostra_upvotes(lista_upvotes)
+    mostra_upvotes(lista_post_upvoted)
 
-    # O è il percorso verso un file.txt con la lista da esso creato con .readlines()
-    # Oppure sono il percorso della cartella_user con la listadisub indicate appena prima ma non salvate in txt
-    percorso, sub_scelte = scelta_subreddit(cartella_user, lista_upvotes, sub_upvotes)
+    # O è il percorso verso un file.txt, ed una lista creato a partire da questo grazie a .readlines()
+    # Oppure è il percorso della cartella_user, e la lista di sub indicate appena prima ma non salvate in txt
+    percorso, sub_scelte, nome_file_txt = scelta_subreddit(cartella_user, lista_post_upvoted, set_sub)
 
     print("Lista finale delle sub selezionate:\n")
     pprint.pprint(sub_scelte)
     #pausa = input("PAUSA")
 
+    # ADESSO: Lavoro col database
+    # 1) Aggiorno la tabella sub del db con tutti i nuovi subreddit che trovo negli upvote dell'utente
+    # Se la subreddit è già nella tabella sub avrei un errore perchè il campo è specificato come UNIQUE
+    for sub in set_sub:
+        try:
+            cursore.execute('''INSERT INTO sub(subreddit) VALUES (?)''', (sub,))
+        except sql3.IntegrityError:
+            print("sub già presente nella tabella sub: r/", sub)
+    db.commit()
+
+    input("Aggiornato tabella sub")
+    # 2) Aggiorno la tabella selezioni inserendovi il nome del file txt da cui prendo le sub scelte da salvare
+    # Se il file txt è già nel db saltalo (il campo è specificato come UNIQUE perciò genera errore se si duplica)
+    try:
+        cursore.execute('''INSERT INTO selezioni(fileselezione) VALUES (?)''', (nome_file_txt,))
+        db.commit()
+    except:
+        print("già presente nella tabelle selezioni il file ", nome_file_txt)
+
+    # 3) Aggiorno la tabella selezioni_sub che è la tabella multi relazionale tra subID e selezioniID
+    # Per aggiornare la tabella mi serve per prima cosa l'ID del file nella tabella selezioni
+    cursore.execute('SELECT id FROM selezioni WHERE fileselezione=?', (nome_file_txt,))
+    rigo_selezioni = cursore.fetchone()
+
+    # Per aggiornare la tabella mi serve anche l'ID delle singole sub scelte nella tabella sub
+    for sub in sub_scelte:
+        cursore.execute('SELECT id FROM sub WHERE subreddit=?', (sub,))
+        rigo_sub = cursore.fetchone()
+
+        # Qualora per uno dei sub scelti, non ci siano post upvotati da salvare avremo un errore
+        try:
+            cursore.execute("SELECT * FROM selezioni_sub WHERE selezioniID = ? AND subID = ?", (rigo_selezioni[0], rigo_sub[0]))
+            retrieve = cursore.fetchone()
+            print(retrieve)
+        except TypeError:
+            print("non c'è tra i file da salvare nulla che proviene dalla sub /r/", sub)
+            continue
+
+        # L'if serve a Evitare di copiare nella tabella selezioni_sub gli stessi dati più volte
+        if retrieve:
+            print("Nella tabella selezioni_sub è gia presente la coppia: /r/" + sub + "; " + nome_file_txt)
+            continue
+        print("Cerco di inserire nella tabella selezioni_sub: r/" + sub + "; " + nome_file_txt)
+        try:
+            cursore.execute('INSERT INTO selezioni_sub (selezioniID, subID) VALUES (?,?)', (rigo_selezioni[0],rigo_sub[0]))
+            db.commit()
+        except:
+            print("qualcosa è andato storto")
+            input()
+    #db.close()
+    input("controlla db")
+
+
+    #TODO piuttosto che file txt andrebbe usato un database
     # Crea/Legge il file dove sono segnati tutti gli url dei vecchi post upvotati; servirà per il controllo dei doppioni
     file_old_up = txt_upvote_passati(PATH_SLUT)
     lista_old_up = file_old_up.readlines()
 
-    # Seleziono i post upvotati provenienti dalle sub indicate prima, restituendoli in una lista di post
-    lista_new_up = selezione_post(lista_upvotes, sub_scelte)
+    # Seleziono solo i post che provengono dalle sub indicate, e li restituisco in una lista
+    lista_post_da_salvare = selezione_post(lista_post_upvoted, sub_scelte)
     print('\nprinto i submission selezionati!\n')
-    mostra_upvotes(lista_new_up)
+    mostra_upvotes(lista_post_da_salvare)
     #pausa = input("PAUSA")
 
     # Da ogni post nella lista viene estrapolato l'url, e creata una lista di url pronti per essere checkati per doppioni, e poi salvati
-    for elemento in lista_new_up:
-        smista_formato(sfigatto, elemento=elemento)
+    for post_da_salvare in lista_post_da_salvare:
+        #url_dal_post(post_da_salvare)
+        smista_formato(sfigatto, elemento=post_da_salvare)
         # metto qua il parse dei commenti per evitare dopo un altro ciclo identico
-        parse_commenti2(elemento)
+        parse_commenti2(post_da_salvare)
+
+    j,i = prova_regex(list(POST))
+    y, z = prova_regex(list(COMMENTI))
+    print(j)
+    print(i)
+    print(y)
+    print(z)
+    input()
+    print(POST)
+    print(COMMENTI)
+    input()
 
     # A questo punto per ogni lista nel megalistone, guarda se gli elementi sono dei doppioni
     for lista_formato in LISTE:
@@ -142,6 +210,10 @@ def main():
     print('commenti irrecuperabili\n', COMM_IRR)
     pprint.pprint(COMM_IRR)
 
+    file_old_up.close()
+    file_old_comm.close()
+    db.close()
+
     for lista in (DA_RIMUOVERE):
         for post in DIZ_CLEANER:
             if DIZ_CLEANER[post] in lista:
@@ -160,14 +232,18 @@ def scelta(stringa, opz1y="s" , opz2n="n"):
             continue
 
 def parse_commenti2(post):
-    pattern = re.compile(regex)
+    """Se ho un post, ho un oggetto specifico di reddit, se ho un commento invece maneggio un URL"""
+    print("parse commenti")
+    # Se capisco bene questo try/except serve solo a ME per capire se sto trattando un post o un commento
     try:  # se ho un post
-        print("TRYHo un POST")
+        #print("TRY\nHo un POST")
         post.comments.replace_more(limit=0)
     except:  # se ho un commento
-        print("EXCEPTHo un COMMENTO")
+        #print("EXCEPT\nHo un COMMENTO")
         post.replace_more(limit=0)
 
+    pattern = re.compile(regex)
+    # Trasoformo i commenti in utf-8, e cerco il pattern (https) all'interno del commento
     for commento in post.comments.list():
         bytestring = commento.body.encode('utf-8', 'replace')
         # cerca = pattern.search(str(bytestring, 'utf-8'))
@@ -175,9 +251,9 @@ def parse_commenti2(post):
         # print(bytestring)
         # print(cerca)
         if cerca:
-            print("\n***********TROVATO!********:\n", cerca)
+            print("\n***********TROVATO! URL nei commenti********:\n", cerca)
         for elem in cerca:
-            COMMENTI.append(elem)
+            COMMENTI.add(elem)
     print(len(COMMENTI))
 
 def remove_upvote(el):
@@ -213,7 +289,7 @@ def lista_post_set_sub(redditore):
     sub_origine = set()
     print("NUOVA FUNZIONE LISTA_POST_SET_SUB")
     # .upvoted() Return a ListingGenerator for items the user has upvoted.
-    upvoted = redditore.upvoted()
+    upvoted = redditore.upvoted() # praw.models.listing.generator.ListingGenerator object
 
     for upvote in upvoted:
         lista_up.append(upvote)
@@ -225,15 +301,15 @@ def mostra_upvotes(lista_up):
 
     for post in lista_up:
         sub = str(post.subreddit)
+        titolo = str(post.title.encode(errors='replace'))
         # Formula che calcola le tab ottimali per pareggiare la spaziatura tra il nome del sub e il titolo
         lun = len(sub)
         spazi = "\t" * (6 - lun // 4)
         if lun % 4 == 0:
             spazi += "\t"
 
-        print(str(num) + ')\t/r/' + sub + spazi + str(post.title.encode(errors='replace')))
+        print(str(num) + ')\t/r/' + sub + spazi + titolo)
         num += 1
-
 
 def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
     """I post provenienti da quelle subreddit vuoi salvare?
@@ -269,9 +345,9 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
                         print("\nContenuto del file %s\n" % sceltatxt)
                         print(copiafilesub)
 
-                        #TODO Penso che si possa fare diversamente il confronto tra gli elementi di due liste, senza necessità di crearne una terza
-                        #confronta le sub dei post upvotati con le sub contenute nel file selezionato
-                        # per mostrare quelle che sono rimaste fuori dal file scelto così da potercele aggiungere
+                        #confronto tra gli elementi di due liste:
+                        #la lista di sub dei post upvotati e le sub contenute nel file selezionato
+                        #seleziona le sub al di fuori dal file scelto così da poterle mostrare
 
                         listasubescluse = list(set(sub_upvoted).difference(copiafilesub))
                         print('Scegliendo %s, gli upvotes dalle seguenti subreddit NON verrano salvati\n' % sceltatxt)
@@ -280,7 +356,12 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
                         # Si da la possibilità di aggiungere altre subreddit al file scelto in modo permamenente
                         aggiungi_sub(filesub)
 
-                        return percorso_filesub, copiafilesub
+                        # Se sono state aggiunte delle sub bisogna aggiornare la lista delle sub da restituire!
+                        filesub.seek(0)
+                        copiafilesub = filesub.read().lower().splitlines()
+
+
+                        return percorso_filesub, copiafilesub, sceltatxt[:-4]
                 else:
                     print('il file %s non esiste!!!' % sceltatxt)
                     continue
@@ -291,9 +372,15 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
 
             if scelta("vuoi salvare queste scelte in un file per una futura ricerca?\n [s/n]"):
                 # Scelta del nome del file
-                while True:
-                    filenome = input("che nome dai al file?\n")
-
+                mess = "che nome dai al file?"
+                filenome = ''
+                while not filenome:
+                    print(mess)
+                    filenome = input()
+                    # Se il nome del file è stato lasciato in bianco, ripeti il nome
+                    if not filenome:
+                        mess = "Non hai dato un nome valido!!!\n che nome dai al file?"
+                        continue
                     if not filenome.endswith('.txt'):
                         filenome = filenome + '.txt'
                         print(filenome)
@@ -310,9 +397,9 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
                     filenuovo.write(sub + '\n')
                 filenuovo.close()
                 # Restituito il percorso del file creato e la lista creata sulla base del file
-                return percorso_filenuovo, listasub #lista_filenuovo
+                return percorso_filenuovo, listasub, filenome[:-4] #lista_filenuovo
             # Restituito il percorso della cartella dell'user con l'elenco di sub scritte pocanzi ma non salvate in un file.
-            return cartella_user, listasub
+            return cartella_user, listasub, 'temp'
 
         # TODO opzione speciale per salvare tutti i file upvotati direttamente!
         elif opz == 3:
@@ -326,6 +413,7 @@ def scelta_subreddit(cartella_user, upvoted, sub_upvoted):
 def aggiungi_sub(data):
     """Aggiunge all'argomento passatole (file o lista) le subreddit scelte dall'utente"""
     messaggio = "quale subreddit vuoi aggiungere? Scrive bene il nome! Lascia bianco per proseguire\n"
+    print(messaggio)
     sub_indicata = 1
     while sub_indicata:
         print(messaggio)
@@ -361,56 +449,113 @@ def txt_upvote_passati(percorso):
 
 def check_doppione(url, lista_passato, file_passato):
     print('\ncheck doppione: ', url)
-    for rigo in lista_passato:
-        # Se l'url che sto controllando è già nella lista di upvote vecchi allora controllo se il file esiste effettivamente
-        if url in rigo:
-            nome = os.path.basename(url)
 
-            immag = os.path.isfile(os.path.join(PATH_SLUT_IMG, nome))
-            singola_immag = os.path.isfile(os.path.join(PATH_SLUT_IMG, nome + '.jpg'))
-            vid = os.path.isfile(os.path.join(PATH_SLUT_VID, nome))
-            gfy = os.path.isfile(os.path.join(PATH_SLUT_VID, nome + '.mp4'))
-            gifv = os.path.isfile(os.path.join(PATH_SLUT_VID, nome[:-4] + 'mp4'))
-            commento = os.path.isfile(os.path.join(PATH_SLUT_COM, nome))
+    # Se l'url che sto controllando è già nella lista di upvote vecchi allora controllo se il file esiste effettivamente
+    if url in lista_passato:
+        nome = os.path.basename(url)
 
-            # controlla se il file esiste
-            if commento:
-                print("Commento già in lista. Saltato!")
+        immag = os.path.isfile(os.path.join(PATH_SLUT_IMG, nome))
+        singola_immag = os.path.isfile(os.path.join(PATH_SLUT_IMG, nome + '.jpg'))
+        vid = os.path.isfile(os.path.join(PATH_SLUT_VID, nome))
+        gfy = os.path.isfile(os.path.join(PATH_SLUT_VID, nome + '.mp4'))
+        gifv = os.path.isfile(os.path.join(PATH_SLUT_VID, nome[:-4] + 'mp4'))
+        commento = os.path.isfile(os.path.join(PATH_SLUT_COM, nome))
+
+        # controlla se il file esiste
+        if commento:
+            print("Commento già in lista. Saltato!")
+            DOPPIONI.append(url)
+            return True
+
+        elif not (immag or vid or gfy or gifv or singola_immag):
+            print('Url già presente in lista, ma file assente!')
+
+            mess = 'vuoi salvare il file: ' + str(url) + '? S/N\n'
+            opz = scelta(mess)
+            if opz:
+                return False
+            elif not opz:
                 DOPPIONI.append(url)
                 return True
 
-            elif not (immag or vid or gfy or gifv or singola_immag):
-                print('Url già presente in lista, ma file assente!')
-
-                mess = 'vuoi salvare il file: ' + str(url) + '? S/N\n'
-                opz = scelta(mess)
-                if opz:
-                    return False
-                elif not opz:
-                    DOPPIONI.append(url)
-                    return True
-
-            # Poichè la cartella dei commenti è lì giusto per lo smistamento se l'url del file è presente nel txt, lo dò già per doppione.
-            else:
-                print(url + ' già presente, con relativo file. DOPPIONISSIMO!')
-                DOPPIONI.append(url)
-                return True
-
+        # Poichè la cartella dei commenti è lì giusto per lo smistamento se l'url del file è presente nel txt, lo dò già per doppione.
         else:
-            continue
+            print(url + ' già presente, con relativo file. DOPPIONISSIMO!')
+            DOPPIONI.append(url)
+            return True
+
+        #else:
+        #   continue
     # cerca nel prossimo rigo
 
     print(url + ' è nuovo! SLURP')
     file_passato.write(url + '\n')
     return False
 
+def url_dal_post(post):
+    """Da un postricava il suo url e lo appende in una lista POST,
+    l'url andrà poi analizzato così da usare l'API corretta per salvarlo
+     (vedendo se viene da imgur o gfycat o reddit ecc...)"""
+
+    url = str(post.url)
+    POST.add(url)
+    # Otteniamo gli url postati nei commenti
+    parse_commenti2(post)
+
+def prova_regex(lista):
+    pattern = re.compile(r'(.*?png$|.*?jp(e)?g$)|(.*?imgur.*|.*?redd.*|.*?gfycat.*)')
+                         #r'((http)(s)?(://))?(imgur.com).*')
+    x = list()
+    y= list()
+    for url in lista:
+        """if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
+            print('abbiamo a che fare con una immagine!\n')
+            # TODO
+        print(url)"""
+        match = pattern.match(url)
+        if match:
+            x.append(match[0])
+        else:
+            y.append(url)
+        try:
+            print(x)
+        except:
+            print("non riesco a mostrarti i groups di: " + url)
+    return x, y
+
+def analisi_post(post, db):
+    """Lo scopo è di ottenere le info del post e di cercare nel db se quel post già è stato salvato
+    e se i suoi file sono in memoria"""
+    return
+
+def smista_post(post):
+    print("SMISTO POST")
+    url = ''
+    try:
+        print("Ho un post")
+        url = str(post.url)
+    except:
+        print("Ho un URL")
+        url = str(post)
+    print(url)
+
+    if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
+        print('abbiamo a che fare con una immagine!\n')
+        formato(LISTA_IMMAGINI, url, kwargs, k)
+
+
+
+
 def smista_formato(sfigatto, **kwargs):
     '''smista i post tra i vari formati e restituisce liste contenenti gli url finali da avviare al check_doppione
     il kwargs serve a far si che la funzione possa usare sia i post che gli url dei post (quando studi i commenti)'''
     #SI PUO REFACTORIARE! E Forse semplificare togliendo il **kwargs.
 
-
-    # print('\nsiamo in smista_formato')
+    print('\nsiamo in smista_formato')
+    """print(kwargs)
+    print(type(kwargs))
+    input("ENTER per continuare")"""
+    url = ''
     try:
         # Se hai un post da cui estrarre l'url
         for k in kwargs:
@@ -421,16 +566,15 @@ def smista_formato(sfigatto, **kwargs):
         for k in kwargs:
             pre_url = kwargs[k]
             url = str(pre_url)
+    print(url)
 
-    if url.startswith('https://www.reddit.com/r/') or url.startswith('https://np.reddit.com/r/'):
+    """if url.startswith('https://www.reddit.com/r/') or url.startswith('https://np.reddit.com/r/'):
         try:
             parse_commenti2(url)
         # print(url)
         # pausa = input("fermo GUARDA!")
         except:
             print("SMISTA: Errore nel recuperare il link da reddit")
-        # print(url)
-        # pausa = input("fermo GUARDA!")
 
     if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
         print('abbiamo a che fare con una immagine!\n')
@@ -474,22 +618,35 @@ def smista_formato(sfigatto, **kwargs):
         elif url.endswith('.mp4'):
             formato(LISTA_VIDEO, url, kwargs, k)
 
+    elif url.endswith('.gifv'):
+        print("siamo su imgur con una GIFV!")
+        formato(LISTA_GIFV, url, kwargs, k)
+
     elif url.startswith('https://gfycat.com/') or url.startswith('https://giant.gfycat.com/') or url.startswith(
             'https://fat.gfycat.com/'):
-        print("siamo su gfycat!\n", url)
+        print("siamo su gfycat!\n")
         sfnome = os.path.basename(url)
         sfinfo = sfigatto.query_gfy(sfnome)
         # pprint.pprint (sfinfo)
         sfurl = sfinfo['gfyItem']['mp4Url']
         print(sfurl)
-        formato(LISTA_VIDEO, sfurl, kwargs, k)
+        formato(LISTA_VIDEO, sfurl, kwargs, k)"""
 
-    elif url.endswith('.gifv'):
-        print("siamo su imgur con una GIFV!")
-        formato(LISTA_GIFV, url, kwargs, k)
+    pattern = re.compile(r'.*?imgur.*')
+    match = pattern.match(url)
+    if match:
+        siti.imagur(url)
+
+    pattern = re.compile(r'.*?gfycat.*')
+    match = pattern.match(url)
+    if match:
+        siti.gfycazz(url)
+
+
+
 
     else:
-        print('***********ODDIO!!! dove siamo?!?********\n', url)
+        print('***********ODDIO!!! dove siamo?!?********\n')
         IRRISOLTI.append(kwargs[k])
 
     return LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV, IRRISOLTI
@@ -559,7 +716,7 @@ def da_salvare(url, cartella_file):
         print("qualcosa è andato storto.")
         print(stato)
         print(url)
-        return 505
+        return stato
     else:
         try:
             salvato = open(os.path.join(cartella_file, os.path.basename(url)), 'wb')
