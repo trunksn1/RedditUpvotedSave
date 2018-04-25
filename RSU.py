@@ -49,57 +49,8 @@ def main():
     pprint.pprint(sub_scelte)
     #pausa = input("PAUSA")
 
-    # ADESSO: Lavoro col database
-    # 1) Aggiorno la tabella sub del db con tutti i nuovi subreddit che trovo negli upvote dell'utente
-    # Se la subreddit è già nella tabella sub avrei un errore perchè il campo è specificato come UNIQUE
-    for sub in set_sub:
-        try:
-            cursore.execute('''INSERT INTO sub(subreddit) VALUES (?)''', (sub,))
-        except sql3.IntegrityError:
-            print("sub già presente nella tabella sub: r/", sub)
-    db.commit()
-
-    input("Aggiornato tabella sub")
-    # 2) Aggiorno la tabella selezioni inserendovi il nome del file txt da cui prendo le sub scelte da salvare
-    # Se il file txt è già nel db saltalo (il campo è specificato come UNIQUE perciò genera errore se si duplica)
-    try:
-        cursore.execute('''INSERT INTO selezioni(fileselezione) VALUES (?)''', (nome_file_txt,))
-        db.commit()
-    except:
-        print("già presente nella tabelle selezioni il file ", nome_file_txt)
-
-    # 3) Aggiorno la tabella selezioni_sub che è la tabella multi relazionale tra subID e selezioniID
-    # Per aggiornare la tabella mi serve per prima cosa l'ID del file nella tabella selezioni
-    cursore.execute('SELECT id FROM selezioni WHERE fileselezione=?', (nome_file_txt,))
-    rigo_selezioni = cursore.fetchone()
-
-    # Per aggiornare la tabella mi serve anche l'ID delle singole sub scelte nella tabella sub
-    for sub in sub_scelte:
-        cursore.execute('SELECT id FROM sub WHERE subreddit=?', (sub,))
-        rigo_sub = cursore.fetchone()
-
-        # Qualora per uno dei sub scelti, non ci siano post upvotati da salvare avremo un errore
-        try:
-            cursore.execute("SELECT * FROM selezioni_sub WHERE selezioniID = ? AND subID = ?", (rigo_selezioni[0], rigo_sub[0]))
-            retrieve = cursore.fetchone()
-            print(retrieve)
-        except TypeError:
-            print("non c'è tra i file da salvare nulla che proviene dalla sub /r/", sub)
-            continue
-
-        # L'if serve a Evitare di copiare nella tabella selezioni_sub gli stessi dati più volte
-        if retrieve:
-            print("Nella tabella selezioni_sub è gia presente la coppia: /r/" + sub + "; " + nome_file_txt)
-            continue
-        print("Cerco di inserire nella tabella selezioni_sub: r/" + sub + "; " + nome_file_txt)
-        try:
-            cursore.execute('INSERT INTO selezioni_sub (selezioniID, subID) VALUES (?,?)', (rigo_selezioni[0],rigo_sub[0]))
-            db.commit()
-        except:
-            print("qualcosa è andato storto")
-            input()
-    #db.close()
-    input("controlla db")
+    # ADESSO: Aggiorno le tabelle: sub, selezioni e selezioni_sub
+    aggiorno_db(db, cursore, nome_file_txt, set_sub, sub_scelte)
 
 
     #TODO piuttosto che file txt andrebbe usato un database
@@ -115,10 +66,10 @@ def main():
 
     # Da ogni post nella lista viene estrapolato l'url, e creata una lista di url pronti per essere checkati per doppioni, e poi salvati
     for post_da_salvare in lista_post_da_salvare:
-        #url_dal_post(post_da_salvare)
-        smista_formato(sfigatto, elemento=post_da_salvare)
+        smista_post(post_da_salvare)
+        #smista_formato(sfigatto, elemento=post_da_salvare)
         # metto qua il parse dei commenti per evitare dopo un altro ciclo identico
-        parse_commenti2(post_da_salvare)
+        #parse_commenti2(post_da_salvare)
 
     j,i = prova_regex(list(POST))
     y, z = prova_regex(list(COMMENTI))
@@ -296,6 +247,59 @@ def lista_post_set_sub(redditore):
         sub_origine.add((str(upvote.subreddit).lower()))
     return lista_up, sub_origine
 
+def aggiorno_db(db, cursore, nome_file_txt, set_sub, sub_scelte):
+    # ADESSO: Lavoro col database
+    # 1) Aggiorno la tabella sub del db con tutti i nuovi subreddit che trovo negli upvote dell'utente
+    # Se la subreddit è già nella tabella sub avrei un errore perchè il campo è specificato come UNIQUE
+    for sub in set_sub:
+        try:
+            cursore.execute('''INSERT INTO sub(subreddit) VALUES (?)''', (sub,))
+        except sql3.IntegrityError:
+            print("sub già presente nella tabella sub: r/", sub)
+    db.commit()
+
+    input("Aggiornato tabella sub")
+
+    # 2) Aggiorno la tabella selezioni inserendovi il nome del file txt da cui prendo le sub scelte da salvare
+    # Se il file txt è già nel db saltalo (il campo è specificato come UNIQUE perciò genera errore se si duplica)
+    try:
+        cursore.execute('''INSERT INTO selezioni(fileselezione) VALUES (?)''', (nome_file_txt,))
+        db.commit()
+    except:
+        print("già presente nella tabelle selezioni il file ", nome_file_txt)
+
+    # 3) Aggiorno la tabella selezioni_sub che è la tabella multi relazionale tra subID e selezioniID
+    # Per aggiornare la tabella mi serve per prima cosa l'ID del file nella tabella selezioni
+    cursore.execute('SELECT id FROM selezioni WHERE fileselezione=?', (nome_file_txt,))
+    rigo_selezioni = cursore.fetchone()
+
+    # Per aggiornare la tabella mi serve anche l'ID delle singole sub scelte nella tabella sub
+    for sub in sub_scelte:
+        cursore.execute('SELECT id FROM sub WHERE subreddit=?', (sub,))
+        rigo_sub = cursore.fetchone()
+
+        # Qualora per uno dei sub scelti, non ci siano post upvotati da salvare avremo un errore
+        try:
+            cursore.execute("SELECT * FROM selezioni_sub WHERE selezioniID = ? AND subID = ?",
+                            (rigo_selezioni[0], rigo_sub[0]))
+            retrieve = cursore.fetchone()
+        except TypeError:
+            print("non c'è tra i file da salvare nulla che proviene dalla sub /r/", sub)
+            continue
+
+        # L'if serve a Evitare di copiare nella tabella selezioni_sub gli stessi dati più volte
+        if retrieve:
+            print("Nella tabella selezioni_sub è gia presente la coppia: /r/" + sub + "; " + nome_file_txt)
+            continue
+        print("Cerco di inserire nella tabella selezioni_sub: r/" + sub + "; " + nome_file_txt)
+        try:
+            cursore.execute('INSERT INTO selezioni_sub (selezioniID, subID) VALUES (?,?)',
+                            (rigo_selezioni[0], rigo_sub[0]))
+            db.commit()
+        except:
+            print("qualcosa è andato storto")
+            input()
+
 def mostra_upvotes(lista_up):
     num = 0
 
@@ -430,7 +434,6 @@ def aggiungi_sub(data):
             print(sub_indicata)
     print(data)
 
-
 def txt_upvote_passati(percorso):
     '''crea o legge, poi restituisce il file txt che conterrà/contiene
     l'url dei vecchi post upvotati'''
@@ -484,10 +487,7 @@ def check_doppione(url, lista_passato, file_passato):
             DOPPIONI.append(url)
             return True
 
-        #else:
-        #   continue
     # cerca nel prossimo rigo
-
     print(url + ' è nuovo! SLURP')
     file_passato.write(url + '\n')
     return False
@@ -503,7 +503,7 @@ def url_dal_post(post):
     parse_commenti2(post)
 
 def prova_regex(lista):
-    pattern = re.compile(r'(.*?png$|.*?jp(e)?g$)|(.*?imgur.*|.*?redd.*|.*?gfycat.*)')
+    pattern = re.compile(r'(.*?imgur.*)|(.*?redd.*)|(.*?gfycat.*)') #(.*?png$|.*?jp(e)?g$)|((.*?imgur.*)|(.*?redd.*)|(.*?gfycat.*))')
                          #r'((http)(s)?(://))?(imgur.com).*')
     x = list()
     y= list()
@@ -512,15 +512,25 @@ def prova_regex(lista):
             print('abbiamo a che fare con una immagine!\n')
             # TODO
         print(url)"""
+        x = pattern.findall(url)
+        v = pattern.search(url)
         match = pattern.match(url)
+
         if match:
             x.append(match[0])
+            print(url)
+            print(pattern)
+            print(x)
+            print(v.groups())
+            print(match)
+            input("Input, pattern, findall, groups, e match")
+            print()
         else:
             y.append(url)
-        try:
+        """try:
             print(x)
         except:
-            print("non riesco a mostrarti i groups di: " + url)
+            print("non riesco a mostrarti i groups di: " + url)"""
     return x, y
 
 def analisi_post(post, db):
@@ -529,7 +539,7 @@ def analisi_post(post, db):
     return
 
 def smista_post(post):
-    print("SMISTO POST")
+    print("\nSMISTO POST")
     url = ''
     try:
         print("Ho un post")
@@ -537,12 +547,48 @@ def smista_post(post):
     except:
         print("Ho un URL")
         url = str(post)
-    print(url)
 
+    print(url)
     if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
         print('abbiamo a che fare con una immagine!\n')
-        formato(LISTA_IMMAGINI, url, kwargs, k)
+        #formato(LISTA_IMMAGINI, url, kwargs, k)
 
+    elif url.endswith('.gifv'):
+        print("siamo su imgur con una GIFV!")
+        #formato(LISTA_GIFV, url, kwargs, k)
+
+    elif url.endswith('.mp4'):
+        #TODO
+        print("è un video!")
+        pass
+
+    pattern = re.compile(r'(.*?imgur.*)|(.*?redd.*)|(.*?gfycat.*)')
+    v = pattern.search(url)
+    try:
+        tupla_search = v.groups()
+        if tupla_search[0]:
+            print("imgur")
+            pass
+            #imgur
+        elif tupla_search[1]:
+            print("reddit")
+            pass
+            #forse reddit
+        elif tupla_search[2]:
+            print("gfycat")
+            pass
+        #gfycat
+        else:
+            print(url)
+            print("non riconosciuto")
+    except:
+        print("URL non da imgur reddit o gfycat")
+        return
+
+
+def identifica_formato(filetype, url, dizkw, kwk):
+    lista.append(url)
+    DIZ_CLEANER[dizkw[kwk]] = url
 
 
 
@@ -650,7 +696,6 @@ def smista_formato(sfigatto, **kwargs):
         IRRISOLTI.append(kwargs[k])
 
     return LISTA_IMMAGINI, LISTA_VIDEO, LISTA_GIFV, IRRISOLTI
-
 
 def formato(lista, url, dizkw, kwk):
     lista.append(url)
