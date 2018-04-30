@@ -9,7 +9,7 @@ from imgurpython import ImgurClient
 from login import reddit_login
 from config import PATH_SLUT, PATH_SLUT_IMG, PATH_SLUT_VID, PATH_SLUT_COM, imgur_client_id, imgur_client_secret
 import sqlite3 as sql3
-import siti
+from siti import gfycazz, imagur
 
 # regex = r'http.*imgur.*/[0-9a-zA-Z]*(jpeg|jpg|png|gif)? | http.*gfycat.*(jpeg|jpg|png|gif|gfv|gifv|gfy)?'
 # regex = r'http.*imgur[0-9a-zA-Z/\.]*|http.*gfycat[0-9a-zA-Z/\.]*'
@@ -27,12 +27,14 @@ COMMENTI = set()
 POST = set()
 COMM_IRR = []
 
+IMGUR = ImgurClient(imgur_client_id, imgur_client_secret)
+SFIGATTO = GfycatClient()
 
 def main():
     # Fase preparatoria dei login e delle configurazioni
-    sfigatto = GfycatClient()
+    #sfigatto = GfycatClient()
     redditore, cartella_user, db = reddit_login()
-    imgur = ImgurClient(imgur_client_id, imgur_client_secret)
+    #imgur = ImgurClient(imgur_client_id, imgur_client_secret)
     cursore = db.cursor()
 
     # creo la lista degli upvotes e un set delle subreddit in cui sono stati postati i post upvotati
@@ -52,11 +54,10 @@ def main():
     # ADESSO: Aggiorno le tabelle: sub, selezioni e selezioni_sub
     aggiorno_db(db, cursore, nome_file_txt, set_sub, sub_scelte)
 
-
     #TODO piuttosto che file txt andrebbe usato un database
     # Crea/Legge il file dove sono segnati tutti gli url dei vecchi post upvotati; servirà per il controllo dei doppioni
-    file_old_up = txt_upvote_passati(PATH_SLUT)
-    lista_old_up = file_old_up.readlines()
+    #file_old_up = txt_upvote_passati(PATH_SLUT)
+    #lista_old_up = file_old_up.readlines()
 
     # Seleziono solo i post che provengono dalle sub indicate, e li restituisco in una lista
     lista_post_da_salvare = selezione_post(lista_post_upvoted, sub_scelte)
@@ -66,7 +67,21 @@ def main():
 
     # Da ogni post nella lista viene estrapolato l'url, e creata una lista di url pronti per essere checkati per doppioni, e poi salvati
     for post_da_salvare in lista_post_da_salvare:
-        smista_post(post_da_salvare)
+        #smista_post(post_da_salvare)
+        if doppione(cursore, post_da_salvare):
+            continue
+        else:
+            path = smista_e_salva(post_da_salvare)
+            aggiungi_a_db(db, cursore, post_da_salvare, nome_file_txt, path)
+            parse_commenti2(cursore, post_da_salvare)
+
+    for commento in COMMENTI:
+        if not doppione(cursore, commento):
+            da_salvare(commento, cartella_file=PATH_SLUT_COM)
+            aggiungi_a_db(db, cursore, commento, nome_file_txt, PATH_SLUT_COM)
+    db.close()
+
+
         #smista_formato(sfigatto, elemento=post_da_salvare)
         # metto qua il parse dei commenti per evitare dopo un altro ciclo identico
         #parse_commenti2(post_da_salvare)
@@ -124,7 +139,7 @@ def main():
     print("smistiamo i commenti!!!!")
     for commento in COMMENTI:
         try:
-            smista_formato(sfigatto, commento=commento)
+            smista_formato(SFIGATTO, commento=commento)
         except:
             print("ERRORE DI RECUPERO!!")
             COMM_IRR.append(commento)
@@ -182,9 +197,9 @@ def scelta(stringa, opz1y="s" , opz2n="n"):
             print("Devi scrivere solo '%s' oppure '%s'\nRIPROVA\n" %(opz1y, opz2n))
             continue
 
-def parse_commenti2(post):
+def parse_commenti2(cursore, post):
     """Se ho un post, ho un oggetto specifico di reddit, se ho un commento invece maneggio un URL"""
-    print("parse commenti")
+    print("parse commenti del post: ", post.shortlink)
     # Se capisco bene questo try/except serve solo a ME per capire se sto trattando un post o un commento
     try:  # se ho un post
         #print("TRY\nHo un POST")
@@ -205,6 +220,10 @@ def parse_commenti2(post):
             print("\n***********TROVATO! URL nei commenti********:\n", cerca)
         for elem in cerca:
             COMMENTI.add(elem)
+            #if not doppione(cursore, elem):
+            #    da_salvare(elem, cartella_file=PATH_SLUT_COM)
+            #    aggiungi_a_db()
+
     print(len(COMMENTI))
 
 def remove_upvote(el):
@@ -302,7 +321,6 @@ def aggiorno_db(db, cursore, nome_file_txt, set_sub, sub_scelte):
 
 def mostra_upvotes(lista_up):
     num = 0
-
     for post in lista_up:
         sub = str(post.subreddit)
         titolo = str(post.title.encode(errors='replace'))
@@ -450,6 +468,91 @@ def txt_upvote_passati(percorso):
     lista = open('lista_upvote.txt', modo)
     return lista
 
+def doppione(cursore, post):
+    """
+    Se il post è già presente nel database -> è un doppione
+    Se tuttavia il file non c'è chiede all'utente se salvarlo!
+    Se il post è assente nel database, o se l'utente così decide -> Salvalo
+    Aggiorna poi il database sia se il post è stato salvato che se non lo è stato"""
+    url = ''
+    try:
+        print("Ho un post")
+        url = str(post.url)
+    except:
+        print("Ho un URL")
+        url = str(post)
+    #url = str(post.url)
+    print("\nDOPPIONE?\n", url)
+
+
+    # Vediamo se l'url del post è già nella tabella file_salvati Seleziono filetype perchè mi serve dopo per ottenere la cartella dove andare a cercare il file.
+    # Se infatti il file esiste nella cartella esso è certamente un doppione e si salta, se manca, si chiede all'utente se salvarlo.
+    cursore.execute('SELECT percorso FROM file_salvati WHERE url=?', (url,))
+    selezioni_filetype = cursore.fetchone()
+
+    # Se il post già esiste nel database: controlliamo se esiste il file
+    if selezioni_filetype:
+        print("l'url è già presente nel database, controllo che ci sia il file")
+        nome = os.path.basename(url)
+        """print(nome)
+        print(os.path.join(PATH_SLUT_COM, nome))
+        print(os.path.join(PATH_SLUT_IMG, nome))
+        print(os.path.join(PATH_SLUT_VID, nome))
+        input()"""
+        # Controllo se il file è tra la cartella commenti
+        if os.path.isfile(os.path.join(PATH_SLUT_COM, nome)):
+            print("Commento già in lista. Saltato!")
+            return True
+        # Controllo se il file è tra la cartella immagini o video
+        elif not os.path.isfile(os.path.join(PATH_SLUT_IMG, nome)) or os.path.isfile(os.path.join(PATH_SLUT_VID, nome)) or os.path.isfile(os.path.join(PATH_SLUT_VID, nome, '.webm')) or os.path.isfile(os.path.join(PATH_SLUT_VID, nome, '.mp4')):
+            print("Url nel database ma file non esistente!\n", nome)
+            mess = 'vuoi salvare il file: ' + url + '? S/N\n'
+            opz = scelta(mess)
+            if opz: # Se l'utente ha detto di voler salvare il file allora, la funzione restituisce False e si procedere al salvataggio
+                return False
+            return True # In questo caso l'utente ha detto di non voler salvare il file, quindi la funz restituisce True
+
+    # Se l'url non è presente nel database restituisci False così da poter avviare la fase di salvataggio in main()
+    if not selezioni_filetype:
+        print("NUOVO, SLURP")
+        return False
+
+
+def aggiungi_a_db(db, cursore, post, nome_file_txt, percorso=''):
+    #TODO
+    # Aggiungo i dati al db
+    #Ricaviamo l'id della subreddit originaria del post dalla tabella sub:
+    print(type(post))
+    # Comportamento diverso se abbiamo un post o un commento:
+    if isinstance(post, praw.models.reddit.submission.Submission):
+        cursore.execute('SELECT id FROM sub WHERE subreddit=?', (str(post.subreddit).lower(),))
+        rigo_sub = cursore.fetchone()
+        print(rigo_sub[0])
+
+        try:
+            print("aggiungo il post al database")
+            cursore.execute('INSERT INTO file_salvati(post, url, subID, txt_subreddit, percorso) VALUES(?,?,?,?,?)',
+                            (str(post.shortlink), str(post.url), rigo_sub[0], nome_file_txt, percorso))
+            db.commit()
+        except sql3.IntegrityError:
+            print("Post, già presente nel database")
+        #else:
+        #    # Controlla se esiste il file nella cartella! nsfw_<formato>
+        #    print("Non aggiunto")
+        #input("Stop")
+        return True
+    # Se stiamo aggiungendo un commento post.subreddit dà un Attribute errore che va aggirato
+    # Aggiungiamo un commento:
+    else:
+        print("aggiungo il commento al database")
+        # Allora provo ad aggiungere il commento, sempre che non sia già presente in lista
+        try:
+            cursore.execute('INSERT INTO file_salvati(url, txt_subreddit, percorso) VALUES(?,?,?)',
+                            (str(post), nome_file_txt, percorso))
+            db.commit()
+        except sql3.IntegrityError:
+            print("Url {}, già presente nel database".format(str(post)))
+
 def check_doppione(url, lista_passato, file_passato):
     print('\ncheck doppione: ', url)
 
@@ -533,12 +636,7 @@ def prova_regex(lista):
             print("non riesco a mostrarti i groups di: " + url)"""
     return x, y
 
-def analisi_post(post, db):
-    """Lo scopo è di ottenere le info del post e di cercare nel db se quel post già è stato salvato
-    e se i suoi file sono in memoria"""
-    return
-
-def smista_post(post):
+def smista_e_salva(post):
     print("\nSMISTO POST")
     url = ''
     try:
@@ -549,48 +647,71 @@ def smista_post(post):
         url = str(post)
 
     print(url)
+
     if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
         print('abbiamo a che fare con una immagine!\n')
+        return da_salvare(url, PATH_SLUT_IMG)
+
+        #formato('immagine', post)
         #formato(LISTA_IMMAGINI, url, kwargs, k)
 
     elif url.endswith('.gifv'):
         print("siamo su imgur con una GIFV!")
+        link = imagur(IMGUR, url)
+        return da_salvare(url, PATH_SLUT_VID)
+
         #formato(LISTA_GIFV, url, kwargs, k)
 
     elif url.endswith('.mp4'):
-        #TODO
         print("è un video!")
-        pass
+        return da_salvare(url, PATH_SLUT_VID)
+
+
 
     pattern = re.compile(r'(.*?imgur.*)|(.*?redd.*)|(.*?gfycat.*)')
     v = pattern.search(url)
     try:
         tupla_search = v.groups()
-        if tupla_search[0]:
+        if tupla_search[0]: #imgur
             print("imgur")
-            pass
-            #imgur
-        elif tupla_search[1]:
+            link = imagur(IMGUR, url)
+            #if type(link) == list:
+            if isinstance(link, list):
+                print("ALBUM!")
+                for el in link:
+                    da_salvare(el) # in questo caso non gli faccio restituire niente o non salvo le singole immagini
+            else:
+                return da_salvare(link)
+
+        elif tupla_search[1]: #forse reddit
             print("reddit")
+            #input("Quali sono le possibilità? STOP")
             pass
-            #forse reddit
-        elif tupla_search[2]:
+
+        elif tupla_search[2]: #gfycat
             print("gfycat")
-            pass
-        #gfycat
+            link = gfycazz(SFIGATTO, url)
+            print(link)
+            #input("STOP, CONTROLLA COME E' IL FORMATO ")
+            return da_salvare(link)
+
         else:
             print(url)
+            #Da aggiungere alla tabella non_salvati
             print("non riconosciuto")
     except:
         print("URL non da imgur reddit o gfycat")
-        return
 
 
-def identifica_formato(filetype, url, dizkw, kwk):
-    lista.append(url)
-    DIZ_CLEANER[dizkw[kwk]] = url
+def db_pre_salvataggio(formato, post):
+    #if file già esiste nel database
+        #se esiste, controlla che ci sia effettivamente
+            #se esiste e c'è -> salta
+        #se non c'è il file chiedi se salvarlo
 
-
+    # se non c'è nel database il post/url ->vai a salvare il file
+    # solo adesso aggiungi i dati al database!
+    return
 
 def smista_formato(sfigatto, **kwargs):
     '''smista i post tra i vari formati e restituisce liste contenenti gli url finali da avviare al check_doppione
@@ -614,7 +735,7 @@ def smista_formato(sfigatto, **kwargs):
             url = str(pre_url)
     print(url)
 
-    """if url.startswith('https://www.reddit.com/r/') or url.startswith('https://np.reddit.com/r/'):
+    if url.startswith('https://www.reddit.com/r/') or url.startswith('https://np.reddit.com/r/'):
         try:
             parse_commenti2(url)
         # print(url)
@@ -676,7 +797,8 @@ def smista_formato(sfigatto, **kwargs):
         # pprint.pprint (sfinfo)
         sfurl = sfinfo['gfyItem']['mp4Url']
         print(sfurl)
-        formato(LISTA_VIDEO, sfurl, kwargs, k)"""
+        formato(LISTA_VIDEO, sfurl, kwargs, k)
+        """
 
     pattern = re.compile(r'.*?imgur.*')
     match = pattern.match(url)
@@ -686,7 +808,7 @@ def smista_formato(sfigatto, **kwargs):
     pattern = re.compile(r'.*?gfycat.*')
     match = pattern.match(url)
     if match:
-        siti.gfycazz(url)
+        siti.gfycazz(url)"""
 
 
 
@@ -750,10 +872,22 @@ def down_gifv(url, cartella_file=PATH_SLUT_VID):
     except:
         print("c'è stato un problema con le gifv di imgur")
 
-def da_salvare(url, cartella_file):
-    if os.path.isfile(os.path.join(cartella_file, os.path.basename(url))):
+
+# def da_salvare(url, cartella_file):
+def da_salvare(url, cartella_file=''):
+
+    # Se il programma funziona bene, questo check qua è inutile
+    """if os.path.isfile(os.path.join(cartella_file, os.path.basename(url))):
         print('File già esistente!: ', url)
-        return
+        return il percorso di dove va a salvare il file"""
+    if not cartella_file:
+        if url.endswith('.jpg') or url.endswith('.png') or url.endswith('.gif'):
+            cartella_file = PATH_SLUT_IMG
+
+        elif url.endswith('.gifv') or url.endswith('.mp4') or url.endswith('.webm'):
+            cartella_file = PATH_SLUT_VID
+
+    print(cartella_file)
 
     res = requests.get(url)
     stato = res.status_code
@@ -767,6 +901,7 @@ def da_salvare(url, cartella_file):
             salvato = open(os.path.join(cartella_file, os.path.basename(url)), 'wb')
             salva(salvato, res)
             print("Salvato: ", url)
+            return cartella_file
         except:
             # TODO piazzare l'url salvato da qualche parten
             print("qualcosa è andato storto al salvataggio dell'url: " + str(url))

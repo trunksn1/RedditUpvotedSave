@@ -98,7 +98,7 @@ def database(db):
 	except:
 		# crea le tabelle nel database
 		print("eccetto db")
-		db.execute('CREATE TABLE "file_salvati" ( `post` TEXT NOT NULL UNIQUE, `url` TEXT NOT NULL UNIQUE, `subID` INTEGER NOT NULL, `txt_subreddit` TEXT, `filetype` TEXT, `ID` INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE )')
+		db.execute('CREATE TABLE "file_salvati" ( `post` TEXT UNIQUE, `url` TEXT NOT NULL UNIQUE, `subID` INTEGER, `txt_subreddit` TEXT, `percorso` TEXT, `ID` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE )')
 		db.execute('CREATE TABLE `non_salvati` ( `post` TEXT NOT NULL UNIQUE, `url` TEXT NOT NULL UNIQUE, `ID` INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE )')
 		db.execute('CREATE TABLE "selezioni" ( `fileselezione` TEXT NOT NULL UNIQUE, `ID` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE )')
 		db.execute('CREATE TABLE `sub` ( `subreddit` TEXT UNIQUE, `ID` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE )')
