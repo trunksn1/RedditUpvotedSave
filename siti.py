@@ -7,7 +7,17 @@ from imgurpython import ImgurClient
 import config as cg
 
 def gfycazz(client, url):
-    link_oggetto = client.query_gfy(os.path.basename(url))['gfyItem']['mp4Url']
+    try:
+        link_oggetto = client.query_gfy(os.path.basename(url))['gfyItem']['mp4Url']
+    except KeyError:
+        print("Errore per il file {}".format(url))
+        return 404
+    #except JSONDecodeError:
+    #    print("Errore nel link passato x gfycat")
+    #    return 404
+    except:
+        print("c'è stato un guaio da qualche parte x gfycat")
+        return 404
     return link_oggetto
 
 
@@ -21,7 +31,7 @@ def imagur(client, url):
     # Se è effettivamente un album, restituiamo una lista dei link di ogni singola immagine
     if match:
         lista_link_immagini = list()
-        if url.endswith('?'): #non sò perchè ma ad alcuni post di reddit, il link per l'album termina con ? che sballa tutto
+        if (url.endswith('?') or url.endswith(']')): #non sò perchè ma ad alcuni post di reddit, il link per l'album termina con ? che sballa tutto
             url = url[:-1]
         print("album imgur")
         album_id = os.path.basename(url)
