@@ -6,43 +6,8 @@ import bs4, praw, send2trash
 import config as cg
 from gfycat.client import GfycatClient
 
-def reddit_login(): #COMPLETARE non funziona: il secondo login non va mai in porto!
-	while True:	
-		username = input('what\'s your reddit username?\n')
-		cartella = os.path.join(os.sys.path[0], username)
-		inizializza(username, cartella)
-		db_file = os.path.join(cartella, username + '.db')
-
-		try:
-			reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
-			redditore = reddit.user.me()
-
-		except:
-			print('oops, non riesco a loggare!! Hai sbagliato qualcosa!')
-			print(os.getcwd())
-			
-			time.sleep(2)
-			os.chdir('..')
-			while True:
-				print("vuoi rimuovere la cartella appena creata? \n" + cartella)
-				sel = input("S/N")
-				if sel.upper() == "S":
-					shutil.rmtree(cartella, ignore_errors = True)
-					break
-				elif sel.upper() == "N":
-					break
-			time.sleep(2)
-			continue
-		else:
-			print('niente exception')
-			print(os.getcwd())
-			# Connettiamo il database e verifichiamo che ci siano le tabelle
-			db = sql3.connect(db_file)
-			database(db)
-
-			return reddit, redditore, cartella, db
-		
-def inizializza(username, cartella):
+#def inizializza(username, cartella):
+def inizializza():
 	"""Cerca nella cwd la cartella col nome dell'username fornito
 	se non la trova la crea, crea le cartelle in Y per i file
 	crea il file config per fare dopo il praw.ini, e lo apre
@@ -50,6 +15,9 @@ def inizializza(username, cartella):
 	Restituisce la cartella dell'utente """
 
 	print('inizializziamo')
+	username = input('what\'s your reddit username?\n')
+	cartella = os.path.join(os.sys.path[0], username)
+
 	if not os.path.exists(cartella):
 		os.makedirs(cartella, exist_ok=True)
 		configFile = shelve.open(os.path.join(cartella, 'config'))
@@ -62,6 +30,52 @@ def inizializza(username, cartella):
 
 	os.chdir(cartella)
 	crea_prawini(configFile)
+
+	db_file = os.path.join(cartella, username + '.db')
+	# Connettiamo il database e verifichiamo che ci siano le tabelle
+	db = sql3.connect(db_file)
+	database(db)
+
+	r, redditore, = reddit_login(username, cartella)
+	return r, redditore, cartella, db
+
+#def reddit_login():
+def reddit_login(username, cartella): #COMPLETARE non funziona: il secondo login non va mai in porto!
+	while True:	
+		#username = input('what\'s your reddit username?\n')
+		#cartella = os.path.join(os.sys.path[0], username)
+		#inizializza(username, cartella)
+		#db_file = os.path.join(cartella, username + '.db')
+
+		try:
+			reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
+			redditore = reddit.user.me()
+
+		except:
+			print('oops, non riesco a loggare!! Hai sbagliato qualcosa!')
+			print(os.getcwd())
+			#raise
+
+			time.sleep(2)
+			os.chdir('..')
+			while True:
+				print("vuoi rimuovere la cartella appena creata? \n" + cartella)
+				sel = input("S/N")
+				if sel.upper() == "S":
+					shutil.rmtree(cartella, ignore_errors = True)
+					break
+				elif sel.upper() == "N":
+					break
+			time.sleep(2)
+
+		else:
+			# Connettiamo il database e verifichiamo che ci siano le tabelle
+			#db = sql3.connect(db_file)
+			#database(db)
+
+			#return reddit, redditore, cartella, db
+			return reddit, redditore
+
 
 def inizializza_path(username, file_txt):
 	cg.PATH_SLUT = os.path.join(cg.PATH_SLUT, username, file_txt)

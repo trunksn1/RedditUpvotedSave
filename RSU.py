@@ -6,7 +6,7 @@ import bs4, praw, send2trash
 
 from gfycat.client import GfycatClient
 from imgurpython import ImgurClient
-from login import reddit_login, inizializza_path
+from login import reddit_login, inizializza_path, inizializza
 #from config import PATH_SLUT, PATH_SLUT_IMG, PATH_SLUT_VID, PATH_SLUT_COM, imgur_client_id, imgur_client_secret
 import config as cg
 import sqlite3 as sql3
@@ -23,7 +23,8 @@ SFIGATTO = GfycatClient()
 
 def main():
     # Fase preparatoria dei login e delle configurazioni
-    R, redditore, cartella_user, db = reddit_login()
+    #R, redditore, cartella_user, db = reddit_login()
+    R, redditore, cartella_user, db = inizializza()
     cursore = db.cursor()
 
     # creo la lista degli upvotes e un set delle subreddit in cui sono stati postati i post upvotati
@@ -53,7 +54,7 @@ def main():
     for post_da_salvare in lista_post_da_salvare:
         if doppione(cursore, post_da_salvare):
             # Anche se il link è già presente nel db, il thread può essere diverso, controllare nel db comunque i commenti <- Se fatto bene, tu stai passando il thread non ciò che esso linka
-            #parse_commenti2(cursore, post_da_salvare)
+            parse_commenti2(cursore, post_da_salvare)
             continue
         else:
             path = smista_e_salva(R, post_da_salvare)
@@ -180,9 +181,10 @@ def lista_post_set_sub(redditore):
     # .upvoted() Return a ListingGenerator for items the user has upvoted.
     upvoted = redditore.upvoted(limit=None)  # praw.models.listing.generator.ListingGenerator object
 
-    for upvote in upvoted:
-        lista_up.append(upvote)
-        sub_origine.add((str(upvote.subreddit).lower()))
+    #2 tecniche nuove: list comprehension, set comprehension
+    lista_up = [upvote for upvote in upvoted]
+    sub_origine = {str(upvote.subreddit).lower() for upvote in lista_up}
+
     return lista_up, sub_origine
 
 
