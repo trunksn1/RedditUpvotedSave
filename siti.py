@@ -61,4 +61,14 @@ def imagur(client, url):
 
 if __name__ == "__main__":
     IMGUR = ImgurClient(cg.imgur_client_id, cg.imgur_client_secret)
-    imagur(IMGUR, 'http://imgur.com/gallery/WMzTb0t')
+    #imagur(IMGUR, 'http://imgur.com/gallery/WMzTb0t')
+    g = 'http://imgur.com/gallery/WMzTb0t'
+    gallery_id = os.path.basename(g)
+    #x = IMGUR.get_custom_gallery('WMzTb0t')
+    #print(x)
+    y = IMGUR.gallery_item(gallery_id)
+    z = IMGUR.get_gallery_images(gallery_id)
+    print(z)
+    print(y.__dict__['images'])
+    print(y.images)
+          #.__dict__)

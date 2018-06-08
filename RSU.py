@@ -437,7 +437,7 @@ def aggiungi_a_db(db, cursore, post, nome_file_txt, percorso=''):
         # Ricaviamo l'id della subreddit originaria del post dalla tabella sub:
         cursore.execute('SELECT id FROM sub WHERE subreddit=?', (str(post.subreddit).lower(),))
         rigo_sub = cursore.fetchone()
-        print(rigo_sub[0])
+        #print(rigo_sub[0])
 
         try:
             print("aggiungo il post al database")

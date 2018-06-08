@@ -345,3 +345,10 @@ def prova_regex(lista):
         except:
             print("non riesco a mostrarti i groups di: " + url)"""
     return x, y
+
+
+class ImgurClient(object):
+    def get_gallery_images(self, gallery_id):
+        # LA STO SCRIVENDO IO JACOPO
+        images = self.make_request('GET', 'gallery/%s/images' % gallery_id)
+        return [Image(image) for image in images]
