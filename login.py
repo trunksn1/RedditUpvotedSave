@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import os, pprint, re, requests, shelve, shutil, sys, time
 import sqlite3 as sql3
-import bs4, praw, send2trash
+import bs4, praw, prawcore, send2trash, shutil
 import config as cg
 from gfycat.client import GfycatClient
 
@@ -15,66 +15,66 @@ def inizializza():
 	Restituisce la cartella dell'utente """
 
 	print('inizializziamo')
-	username = input('what\'s your reddit username?\n')
-	cartella = os.path.join(os.sys.path[0], username)
+	#anzichè creare subito la cartella dell'utente, creane una temporanea, e solo quando il login riesce
+	#Tcrea quella dell'utente, trasferiscine il contneuto e cancella quella vecchia
+	diz_utente = {"username": "", "password": ""}
+	diz_utente["username"] = input('what\'s your reddit username?\n')
+
+	cartella = os.path.join(os.sys.path[0], diz_utente["username"])
+	cartella_tmp = os.path.join(os.sys.path[0], "TMP")
 
 	if not os.path.exists(cartella):
-		os.makedirs(cartella, exist_ok=True)
-		configFile = shelve.open(os.path.join(cartella, 'config'))
-		configFile['username'] = username
-		#TODO: va messo un check casomai l'utente sbaglia la password!
-		configFile['password'] = input ('what\'s /u/%s password?\n' %username)
-	# Se esiste, leggila
-	else:
-		configFile = shelve.open(os.path.join(cartella, 'config'))
+		print("utente .. non in memoria")
+		# TODO: un try per vedere se sbagfli password
+		diz_utente["password"] = input('what\'s /u/%s password?\n' % diz_utente["username"])
 
-	os.chdir(cartella)
-	crea_prawini(configFile)
+		os.makedirs(cartella_tmp, exist_ok=True)
+		os.chdir(cartella_tmp)
 
-	db_file = os.path.join(cartella, username + '.db')
+		crea_prawini(diz_utente) #Non ho bisogno di ricreare il file praw.ini se esiste giò!
+
+		try:
+			r, redditore = reddit_login(diz_utente, os.getcwd())
+		except prawcore.exceptions.OAuthException:
+			print("Hai fornito dati errati per il login su reddit CAZZONE!")
+			raise
+		except:
+			print("Qualcosa altro è andato storto al login, riproviamo", sys.exc_info()[0])
+			raise
+
+		else:
+			#Se è andato tutto ok, copiare il contenuto di tmp(praw.ini) nella cartella utente
+			os.makedirs(cartella, exist_ok=True)
+			shutil.move(os.path.join(cartella_tmp, "praw.ini"), cartella)
+			os.chdir(cartella)
+		finally: #Adesso rimuovi la cartella temporanea
+			if not os.path.exists(cartella): #Se non c'è stato errore hai creato e stai lavorando nella cartella utente
+				os.chdir("..") 				#Se hai attivato l'exception devi toglierti dalla cartella TMP
+			send2trash.send2trash(cartella_tmp)
+
+	else: #Se già esiste la cartella dell'utente
+		os.chdir(cartella)
+		try:
+			r, redditore = reddit_login(diz_utente, os.getcwd())
+		except FileNotFoundError:
+			print("ERRORE, non trovo la cartella: %s" %cartella)
+			raise
+		except:
+			print(sys.exc_info()[0])
+			raise
+
+	db_file = os.path.join(cartella, diz_utente["username"] + '.db')
 	# Connettiamo il database e verifichiamo che ci siano le tabelle
 	db = sql3.connect(db_file)
 	database(db)
 
-	r, redditore, = reddit_login(username, cartella)
 	return r, redditore, cartella, db
 
-#def reddit_login():
+
 def reddit_login(username, cartella): #COMPLETARE non funziona: il secondo login non va mai in porto!
-	while True:	
-		#username = input('what\'s your reddit username?\n')
-		#cartella = os.path.join(os.sys.path[0], username)
-		#inizializza(username, cartella)
-		#db_file = os.path.join(cartella, username + '.db')
-
-		try:
-			reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
-			redditore = reddit.user.me()
-
-		except:
-			print('oops, non riesco a loggare!! Hai sbagliato qualcosa!')
-			print(os.getcwd())
-			#raise
-
-			time.sleep(2)
-			os.chdir('..')
-			while True:
-				print("vuoi rimuovere la cartella appena creata? \n" + cartella)
-				sel = input("S/N")
-				if sel.upper() == "S":
-					shutil.rmtree(cartella, ignore_errors = True)
-					break
-				elif sel.upper() == "N":
-					break
-			time.sleep(2)
-
-		else:
-			# Connettiamo il database e verifichiamo che ci siano le tabelle
-			#db = sql3.connect(db_file)
-			#database(db)
-
-			#return reddit, redditore, cartella, db
-			return reddit, redditore
+	reddit = praw.Reddit('rus', user_agent='RedditUpvotedSave (by /u/jacnk3)')
+	redditore = reddit.user.me()
+	return reddit, redditore
 
 
 def inizializza_path(username, file_txt):
@@ -100,14 +100,13 @@ def inizializza_path(username, file_txt):
 		print("Esistono già le path")
 
 
-
-def crea_prawini(configFile):
+def crea_prawini(utente):
 	print('creo praw.ini')
 	with open ('praw.ini', 'w') as fileini:
 		'''Crea il file praw.ini da usare successivamente'''
 		fileini.write('[rus]\n')
-		fileini.write('username=' + configFile['username'] + '\n')
-		fileini.write('password=' + configFile['password'] + '\n')
+		fileini.write('username=' + utente['username'] + '\n')
+		fileini.write('password=' + utente['password'] + '\n')
 		fileini.write('client_id=' + cg.prawini_client_id + '\n')
 		fileini.write('client_secret=' + cg.prawini_client_secret)
 

@@ -23,7 +23,6 @@ SFIGATTO = GfycatClient()
 
 def main():
     # Fase preparatoria dei login e delle configurazioni
-    #R, redditore, cartella_user, db = reddit_login()
     R, redditore, cartella_user, db = inizializza()
     cursore = db.cursor()
 
@@ -179,7 +178,7 @@ def lista_post_set_sub(redditore):
     sub_origine = set()
     print("NUOVA FUNZIONE LISTA_POST_SET_SUB")
     # .upvoted() Return a ListingGenerator for items the user has upvoted.
-    upvoted = redditore.upvoted(limit=None)  # praw.models.listing.generator.ListingGenerator object
+    upvoted = redditore.upvoted(limit=cg.num_post)  # praw.models.listing.generator.ListingGenerator object
 
     #2 tecniche nuove: list comprehension, set comprehension
     lista_up = [upvote for upvote in upvoted]
